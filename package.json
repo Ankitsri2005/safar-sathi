@@ -1,0 +1,22 @@
+{
+  "name": "sih-2026",
+  "version": "1.0.0",
+  "description": "A comprehensive platform for monitoring tourist safety through blockchain-secured digital IDs, real-time tracking, geofencing, and instant emergency response.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "dev": "concurrently -n \"BE,FE\" -c \"blue,green\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "build": "concurrently \"cd frontend && npm run build\" \"cd backend && npm run build\"",
+    "lint": "cd frontend && npm run lint"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "concurrently": "^10.0.5"
+  }
+}

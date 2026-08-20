@@ -1,9 +1,17 @@
 import { Request, Response } from "express";
 import * as touristService from "../services/tourist";
+import { logFromRequest, logAudit } from "../services/audit";
 
 export async function registerTourist(req: Request, res: Response) {
   try {
     const result = await touristService.registerTourist(req.body);
+    await logAudit({
+      event_type: "tourist_record_access",
+      resource_type: "tourist",
+      resource_id: result.tourist.id,
+      details: { action: "registration", id_type: req.body.id_type },
+      ip_address: req.ip,
+    });
     res.status(201).json({
       message: "Tourist registered successfully",
       tourist: result.tourist,
@@ -20,6 +28,13 @@ export async function verifyId(req: Request, res: Response) {
   try {
     const { touristId, blockId } = req.params;
     const result = await touristService.verifyDigitalId(touristId, blockId);
+    await logAudit({
+      event_type: "id_verification",
+      resource_type: "tourist",
+      resource_id: touristId,
+      details: { valid: result.valid, status: result.status },
+      ip_address: req.ip,
+    });
     res.json(result);
   } catch {
     res.status(500).json({ error: "Verification failed" });
@@ -30,6 +45,11 @@ export async function getTourist(req: Request, res: Response) {
   try {
     const tourist = await touristService.getTouristById(req.params.id);
     if (!tourist) return res.status(404).json({ error: "Tourist not found" });
+    await logFromRequest(req, "tourist_record_access", {
+      resource_type: "tourist",
+      resource_id: req.params.id,
+      details: { action: "view_full_profile" },
+    });
     res.json(tourist);
   } catch {
     res.status(500).json({ error: "Failed to get tourist" });
