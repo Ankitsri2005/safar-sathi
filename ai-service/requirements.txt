@@ -1,0 +1,8 @@
+flask>=3.0
+flask-cors
+scikit-learn
+numpy
+pandas
+psycopg2-binary
+python-dotenv
+gunicorn
