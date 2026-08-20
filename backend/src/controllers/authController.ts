@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import * as authService from "../services/auth";
+import { logFromRequest } from "../services/audit";
 
 export async function login(req: Request, res: Response) {
   try {
@@ -15,6 +16,14 @@ export async function login(req: Request, res: Response) {
     }
 
     const token = authService.generateToken(user);
+
+    // Audit log
+    await logFromRequest(req, "login", {
+      user_id: user.id,
+      user_name: user.full_name,
+      user_role: user.role,
+    });
+
     res.json({
       token,
       user: {

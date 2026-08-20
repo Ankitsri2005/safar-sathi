@@ -1,33 +1,63 @@
 import { Request, Response } from "express";
-import * as dashboardService from "../services/dashboard";
-import * as alertService from "../services/alert";
+import * as svc from "../services/dashboard";
 
 export async function getOverview(_req: Request, res: Response) {
   try {
-    const stats = await dashboardService.getOverviewStats();
+    const stats = await svc.getOverviewStats();
     res.json(stats);
   } catch {
-    res.status(500).json({ error: "Failed to get overview stats" });
+    res.status(500).json({ error: "Failed to fetch overview stats" });
   }
 }
 
 export async function getActiveTourists(_req: Request, res: Response) {
   try {
-    const tourists = await dashboardService.getActiveTouristsWithLocation();
+    const tourists = await svc.getActiveTouristsWithLocation();
     res.json(tourists);
   } catch {
-    res.status(500).json({ error: "Failed to get active tourists" });
+    res.status(500).json({ error: "Failed to fetch active tourists" });
   }
 }
 
 export async function getAlertAnalytics(req: Request, res: Response) {
   try {
-    const days = parseInt((req.query.days as string) || "30", 10);
-    const overTime = await dashboardService.getAlertStatsOverTime(days);
-    const topZones = await dashboardService.getMostVisitedZones();
-    const recentAlerts = await alertService.getRecentAlerts(10);
-    res.json({ overTime, topZones, recentAlerts });
+    const days = parseInt(req.query.days as string) || 30;
+    const [overTime, topZones] = await Promise.all([
+      svc.getAlertStatsOverTime(days),
+      svc.getMostVisitedZones(),
+    ]);
+    res.json({ overTime, topZones });
   } catch {
-    res.status(500).json({ error: "Failed to get analytics" });
+    res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+}
+
+export async function getComprehensive(req: Request, res: Response) {
+  try {
+    const days = parseInt(req.query.days as string) || 30;
+    const data = await svc.getComprehensiveAnalytics(days);
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to fetch comprehensive analytics", details: err.message });
+  }
+}
+
+export async function getTouristHeatmap(req: Request, res: Response) {
+  try {
+    const days = parseInt(req.query.days as string) || 7;
+    const data = await svc.getTouristDensityHeatmap(days);
+    res.json(data);
+  } catch {
+    res.status(500).json({ error: "Failed to fetch tourist heatmap" });
+  }
+}
+
+export async function getAlertHeatmap(req: Request, res: Response) {
+  try {
+    const days = parseInt(req.query.days as string) || 30;
+    const data = await svc.getAlertDensityHeatmap(days);
+    res.json(data);
+  } catch {
+    res.status(500).json({ error: "Failed to fetch alert heatmap" });
   }
 }

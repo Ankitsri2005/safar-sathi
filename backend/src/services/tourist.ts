@@ -142,8 +142,7 @@ export async function listDigitalIds(filters?: {
     .select(
       "digital_ids.*",
       "tourists.full_name as tourist_name",
-      "tourists.id_type",
-      "tourists.id_number"
+      "tourists.id_type"
     );
 
   if (filters?.status) {
@@ -185,4 +184,15 @@ export async function recordLocationPing(data: {
     source: "phone",
     timestamp: new Date(),
   });
+
+  // Broadcast location update to connected dashboard clients
+  try {
+    const { io } = await import("../server");
+    io.emit("location:update", {
+      tourist_id: data.tourist_id,
+      lat: data.lat,
+      lng: data.lng,
+      timestamp: new Date().toISOString(),
+    });
+  } catch {}
 }

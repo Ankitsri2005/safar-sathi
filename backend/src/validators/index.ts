@@ -24,7 +24,7 @@ export const loginValidator = [
 
 export const createAlertValidator = [
   body("tourist_id").isUUID().withMessage("Valid tourist ID required"),
-  body("alert_type").isIn(["panic", "anomaly", "geofence_breach"]).withMessage("Invalid alert type"),
+  body("alert_type").isIn(["panic", "restricted_zone_entry", "high_risk_zone_entry", "no_location_update", "route_deviation", "prolonged_stop", "manual"]).withMessage("Invalid alert type"),
   body("location_lat").isFloat({ min: -90, max: 90 }).withMessage("Valid latitude required"),
   body("location_lng").isFloat({ min: -180, max: 180 }).withMessage("Valid longitude required"),
   validate,

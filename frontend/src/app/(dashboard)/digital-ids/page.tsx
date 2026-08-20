@@ -3,6 +3,14 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { DigitalId, IdStatus } from "@/types";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableSkeleton } from "@/components/ui/Table";
+import { Search } from "lucide-react";
 
 export default function DigitalIdsPage() {
   const [ids, setIds] = useState<DigitalId[]>([]);
@@ -25,97 +33,84 @@ export default function DigitalIdsPage() {
     fetchIds();
   }, [page, statusFilter]);
 
-  const statusColors: Record<string, string> = {
-    active: "bg-green-100 text-green-700",
-    expired: "bg-gray-100 text-gray-700",
-    revoked: "bg-red-100 text-red-700",
+  const statusVariant: Record<string, "success" | "default" | "danger"> = {
+    active: "success",
+    expired: "default",
+    revoked: "danger",
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Digital ID Records</h1>
+    <div className="space-y-6 animate-fade-in">
+      <PageHeader
+        title="Digital ID Records"
+        subtitle="Manage and verify blockchain-secured tourist identities"
+        breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Digital IDs" }]}
+      />
 
-      <div className="flex gap-4 items-center">
-        <input
+      <div className="flex gap-4 items-center flex-wrap">
+        <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && fetchIds()}
           placeholder="Search by name or ID number..."
-          className="border rounded-lg px-3 py-2 text-sm flex-1 max-w-md"
+          icon={<Search className="w-4 h-4" />}
+          className="flex-1 max-w-md"
         />
-        <select
+        <Select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-          className="border rounded-lg px-3 py-2 text-sm"
-        >
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="expired">Expired</option>
-          <option value="revoked">Revoked</option>
-        </select>
-        <button onClick={fetchIds} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-          Search
-        </button>
-        <span className="text-sm text-gray-500">{total} records</span>
+          options={[
+            { value: "", label: "All Status" },
+            { value: "active", label: "Active" },
+            { value: "expired", label: "Expired" },
+            { value: "revoked", label: "Revoked" },
+          ]}
+          className="w-40"
+        />
+        <Button variant="primary" size="sm" onClick={fetchIds} icon={<Search className="w-4 h-4" />}>Search</Button>
+        <span className="text-sm text-muted">{total} records</span>
       </div>
 
-      <div className="bg-white rounded-xl border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium">Tourist Name</th>
-              <th className="text-left px-4 py-3 font-medium">ID Number</th>
-              <th className="text-left px-4 py-3 font-medium">Issued</th>
-              <th className="text-left px-4 py-3 font-medium">Expires</th>
-              <th className="text-left px-4 py-3 font-medium">Status</th>
-              <th className="text-left px-4 py-3 font-medium">Block ID</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ids.map((record) => (
-              <tr key={record.id} className="border-b hover:bg-gray-50">
-                <td className="px-4 py-3">{record.tourist_name || "—"}</td>
-                <td className="px-4 py-3 font-mono text-xs">{record.id?.slice(0, 8)}...</td>
-                <td className="px-4 py-3 text-xs">{new Date(record.issued_at).toLocaleDateString()}</td>
-                <td className="px-4 py-3 text-xs">{new Date(record.expires_at).toLocaleDateString()}</td>
-                <td className="px-4 py-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[record.status]}`}>
-                    {record.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3 font-mono text-xs text-gray-500">
-                  {record.block_id.slice(0, 8)}...
-                </td>
-              </tr>
-            ))}
-            {ids.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
-                  No digital IDs found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <Card variant="elevated" padding="none">
+        {ids.length === 0 ? (
+          <TableSkeleton rows={5} cols={6} />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow hover={false}>
+                <TableHead>Tourist Name</TableHead>
+                <TableHead>ID Number</TableHead>
+                <TableHead>Issued</TableHead>
+                <TableHead>Expires</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Block ID</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {ids.map((record) => (
+                <TableRow key={record.id}>
+                  <TableCell>{record.tourist_name || "—"}</TableCell>
+                  <TableCell mono>{record.id?.slice(0, 8)}...</TableCell>
+                  <TableCell className="text-xs">{new Date(record.issued_at).toLocaleDateString()}</TableCell>
+                  <TableCell className="text-xs">{new Date(record.expires_at).toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    <Badge variant={statusVariant[record.status] || "default"}>
+                      {record.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell mono className="text-muted">{record.block_id.slice(0, 8)}...</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
 
       {total > 20 && (
         <div className="flex justify-center gap-2">
-          <button
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="px-3 py-1 border rounded text-sm disabled:opacity-50"
-          >
-            Prev
-          </button>
-          <span className="px-3 py-1 text-sm text-gray-500">Page {page}</span>
-          <button
-            onClick={() => setPage(p => p + 1)}
-            disabled={page * 20 >= total}
-            className="px-3 py-1 border rounded text-sm disabled:opacity-50"
-          >
-            Next
-          </button>
+          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>Prev</Button>
+          <span className="px-3 py-1 text-sm text-muted">Page {page}</span>
+          <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={page * 20 >= total}>Next</Button>
         </div>
       )}
     </div>

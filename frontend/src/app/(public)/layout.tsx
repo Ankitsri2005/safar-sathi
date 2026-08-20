@@ -11,7 +11,7 @@ export default function PublicLayout({
   return (
     <AuthProvider>
       <Navbar />
-      <main>{children}</main>
+      <main className="pt-16">{children}</main>
     </AuthProvider>
   );
 }
