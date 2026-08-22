@@ -125,6 +125,7 @@ export interface Zone {
   risk_level: RiskLevel;
   description: string | null;
   polygon_geojson: string;
+  is_active: boolean;
   created_at: Date;
   updated_at: Date;
 }

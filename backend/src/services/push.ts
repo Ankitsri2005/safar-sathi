@@ -39,7 +39,7 @@ async function getAccessToken(config: FirebaseConfig): Promise<string> {
   });
 
   if (!resp.ok) throw new Error(`Firebase token error: ${resp.status}`);
-  const data = await resp.json();
+  const data: any = await resp.json();
   accessToken = data.access_token;
   tokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
   return accessToken;

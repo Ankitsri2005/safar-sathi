@@ -58,7 +58,7 @@ export async function updateUser(
 
 export function generateToken(user: User): string {
   const payload: JwtPayload = { userId: user.id, role: user.role };
-  return jwt.sign(payload, config.jwt.secret, { expiresIn: config.jwt.expiresIn });
+  return jwt.sign(payload, config.jwt.secret, { expiresIn: config.jwt.expiresIn as any });
 }
 
 export async function verifyPassword(

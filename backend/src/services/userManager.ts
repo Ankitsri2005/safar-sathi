@@ -98,7 +98,7 @@ export async function updateUser(
   const [user] = await db(TABLE)
     .where({ id })
     .update({ ...data, updated_at: new Date() })
-    .returning("id", "username", "full_name", "role", "jurisdiction", "is_active", "created_at", "updated_at");
+    .returning(["id", "username", "full_name", "role", "jurisdiction", "is_active", "created_at", "updated_at"]);
 
   if (user) {
     await logAudit({

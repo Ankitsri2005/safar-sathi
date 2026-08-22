@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { authenticate, authorize } from "../middleware/auth";
-import { UserRole } from "../types";
+import { UserRole, NotificationType } from "../types";
 import {
   getUserNotifications,
   getUnreadCount,
@@ -8,7 +8,6 @@ import {
   markAllAsRead,
   getPreferences,
   sendNotification,
-  NotificationType,
 } from "../services/notification";
 import {
   runEscalationCheck,
