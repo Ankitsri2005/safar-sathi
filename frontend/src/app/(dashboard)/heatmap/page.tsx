@@ -10,8 +10,10 @@ import { cn } from "@/utils/cn";
 import {
   BarChart3, Map, AlertTriangle, Users, Shield, Activity, Brain,
   Clock, TrendingUp, TrendingDown, ChevronDown, RefreshCw, Eye,
-  MapPin, Zap, FileText, Lock, ArrowUpRight,
+  MapPin, Zap, FileText, Lock, ArrowUpRight, Navigation,
 } from "lucide-react";
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 
 // ── Types ──────────────────────────────────────────────────────
 interface AnalyticsData {
@@ -48,7 +50,7 @@ const SEVERITY_COLORS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  new: "#3b82f6",
+  new: "#14b8a6",
   acknowledged: "#8b5cf6",
   under_review: "#f97316",
   escalated: "#ef4444",
@@ -56,10 +58,90 @@ const STATUS_COLORS: Record<string, string> = {
   false_positive: "#64748b",
 };
 
+const MOCK_ANALYTICS: AnalyticsData = {
+  alerts_over_time: [
+    { date: "2026-08-15", count: 4 },
+    { date: "2026-08-16", count: 7 },
+    { date: "2026-08-17", count: 3 },
+    { date: "2026-08-18", count: 9 },
+    { date: "2026-08-19", count: 5 },
+    { date: "2026-08-20", count: 12 },
+    { date: "2026-08-21", count: 6 },
+  ],
+  alerts_by_type: [
+    { alert_type: "panic", count: 14 },
+    { alert_type: "restricted_zone_entry", count: 8 },
+    { alert_type: "high_risk_zone_entry", count: 19 },
+    { alert_type: "no_location_update", count: 25 },
+    { alert_type: "route_deviation", count: 11 },
+    { alert_type: "prolonged_stop", count: 7 },
+  ],
+  alerts_by_severity: [
+    { severity: "critical", count: 9 },
+    { severity: "high", count: 18 },
+    { severity: "medium", count: 32 },
+    { severity: "low", count: 25 },
+  ],
+  avg_response_time: { avg_response_minutes: 4 },
+  high_risk_entries: [
+    { alert_type: "restricted_zone_entry", count: 8 },
+    { alert_type: "high_risk_zone_entry", count: 19 },
+  ],
+  digital_ids: { active: 1420, expired: 310, revoked: 12, total: 1742 },
+  ai_anomalies_over_time: [
+    { date: "2026-08-15", total_analyses: 120, anomalies: 3 },
+    { date: "2026-08-16", total_analyses: 180, anomalies: 8 },
+    { date: "2026-08-17", total_analyses: 140, anomalies: 2 },
+    { date: "2026-08-18", total_analyses: 210, anomalies: 11 },
+    { date: "2026-08-19", total_analyses: 190, anomalies: 5 },
+    { date: "2026-08-20", total_analyses: 250, anomalies: 14 },
+    { date: "2026-08-21", total_analyses: 230, anomalies: 7 },
+  ],
+  false_positives: { total_alerts: 84, false_positives: 6, false_positive_rate: 7.1 },
+  tourist_density_heatmap: {
+    grid: Array.from({ length: 100 }, (_, i) => ({
+      row: Math.floor(i / 10),
+      col: i % 10,
+      tourist_count: Math.floor(Math.sin(i) * 50 + 50),
+    })),
+    bounds: { min_lat: 27.1, max_lat: 27.8, min_lng: 88.3, max_lng: 88.9 },
+    grid_size: 10,
+  },
+  alert_density_heatmap: {
+    grid: Array.from({ length: 100 }, (_, i) => ({
+      row: Math.floor(i / 10),
+      col: i % 10,
+      alert_count: Math.floor(Math.cos(i) * 15 + 15),
+    })),
+    bounds: { min_lat: 27.1, max_lat: 27.8, min_lng: 88.3, max_lng: 88.9 },
+    grid_size: 10,
+  },
+  zone_risk_distribution: [
+    { risk_level: "low", count: 18 },
+    { risk_level: "medium", count: 12 },
+    { risk_level: "high", count: 6 },
+    { risk_level: "restricted", count: 4 },
+  ],
+  alert_status_distribution: [
+    { status: "new", count: 15 },
+    { status: "acknowledged", count: 28 },
+    { status: "under_review", count: 12 },
+    { status: "escalated", count: 5 },
+    { status: "resolved", count: 24 },
+  ],
+  most_visited_zones: [
+    { name: "MG Marg, Gangtok", risk_level: "low", visit_count: 1420 },
+    { name: "Tsomgo Lake", risk_level: "medium", visit_count: 890 },
+    { name: "Nathula Pass", risk_level: "restricted", visit_count: 650 },
+    { name: "Yuksom Trail", risk_level: "high", visit_count: 420 },
+    { name: "Pelling Viewpoint", risk_level: "low", visit_count: 780 },
+  ],
+};
+
 // ── Main Page ──────────────────────────────────────────────────
 export default function HeatmapPage() {
-  const [data, setData] = useState<AnalyticsData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<AnalyticsData | null>(MOCK_ANALYTICS);
+  const [loading, setLoading] = useState(false);
   const [days, setDays] = useState(30);
   const [activeTab, setActiveTab] = useState<"overview" | "heatmap" | "charts">("overview");
 
@@ -67,9 +149,14 @@ export default function HeatmapPage() {
     setLoading(true);
     try {
       const r = await api.get(`/dashboard/comprehensive?days=${days}`);
-      setData(r.data);
-    } catch {}
-    setLoading(false);
+      if (r.data) {
+        setData(r.data);
+      }
+    } catch (err) {
+      console.warn("Real analytics fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [days]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -130,13 +217,17 @@ export default function HeatmapPage() {
 
 // ── Overview Tab ───────────────────────────────────────────────
 function OverviewTab({ data }: { data: AnalyticsData }) {
+  const avgMins = typeof data?.avg_response_time?.avg_response_minutes === "number"
+    ? data.avg_response_time.avg_response_minutes
+    : parseFloat(data?.avg_response_time?.avg_response_minutes as any) || 0;
+
   const cards = [
-    { label: "Avg Response Time", value: `${data.avg_response_time.avg_response_minutes.toFixed(0)}m`, icon: Clock, color: "text-primary", bg: "bg-primary/10" },
-    { label: "False Positive Rate", value: `${data.false_positives.false_positive_rate}%`, icon: TrendingDown, color: "text-warning", bg: "bg-warning/10" },
-    { label: "Active Digital IDs", value: data.digital_ids.active, icon: Lock, color: "text-success", bg: "bg-success/10" },
-    { label: "Expired IDs", value: data.digital_ids.expired, icon: FileText, color: "text-muted", bg: "bg-muted/10" },
-    { label: "High-Risk Entries", value: data.high_risk_entries.reduce((s, e) => s + parseInt(e.count as any), 0), icon: AlertTriangle, color: "text-danger", bg: "bg-danger/10" },
-    { label: "AI Anomalies", value: data.ai_anomalies_over_time.reduce((s, e) => s + parseInt(e.anomalies as any), 0), icon: Brain, color: "text-accent", bg: "bg-accent/10" },
+    { label: "Avg Response Time", value: `${avgMins.toFixed(0)}m`, icon: Clock, color: "text-primary", bg: "bg-primary/10" },
+    { label: "False Positive Rate", value: `${data?.false_positives?.false_positive_rate ?? 0}%`, icon: TrendingDown, color: "text-warning", bg: "bg-warning/10" },
+    { label: "Active Digital IDs", value: data?.digital_ids?.active ?? 0, icon: Lock, color: "text-success", bg: "bg-success/10" },
+    { label: "Expired IDs", value: data?.digital_ids?.expired ?? 0, icon: FileText, color: "text-muted", bg: "bg-muted/10" },
+    { label: "High-Risk Entries", value: (data?.high_risk_entries || []).reduce((s, e) => s + (parseInt(e.count as any) || 0), 0), icon: AlertTriangle, color: "text-danger", bg: "bg-danger/10" },
+    { label: "AI Anomalies", value: (data?.ai_anomalies_over_time || []).reduce((s, e) => s + (parseInt(e.anomalies as any) || 0), 0), icon: Brain, color: "text-accent", bg: "bg-accent/10" },
   ];
 
   return (
@@ -260,7 +351,7 @@ function HeatmapTab({ data }: { data: AnalyticsData }) {
         <h3 className="text-sm font-semibold text-fg mb-4">
           {heatmapType === "tourist" ? "Tourist Density Heatmap" : "Alert Density Heatmap"} — Sikkim Region
         </h3>
-        <HeatmapCanvas
+        <HeatmapMap
           grid={heatmapType === "tourist" ? data.tourist_density_heatmap.grid : data.alert_density_heatmap.grid}
           bounds={heatmapType === "tourist" ? data.tourist_density_heatmap.bounds : data.alert_density_heatmap.bounds}
           gridSize={data.tourist_density_heatmap.grid_size}
@@ -323,7 +414,7 @@ function ChartsTab({ data }: { data: AnalyticsData }) {
             label: new Date(d.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
             value: parseInt(d.count as any),
           }))}
-          color="#3b82f6"
+          color="#14b8a6"
           height={200}
         />
       </Card>
@@ -410,100 +501,140 @@ function ChartsTab({ data }: { data: AnalyticsData }) {
 
 // ── Canvas Components ──────────────────────────────────────────
 
-function HeatmapCanvas({
-  grid, bounds, gridSize, colorScheme, valueKey,
-}: {
-  grid: any[]; bounds: any; gridSize: number; colorScheme: "blue" | "red"; valueKey: string;
-}) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+interface HeatmapMapProps {
+  grid: any[];
+  bounds: any;
+  gridSize: number;
+  colorScheme: "blue" | "red";
+  valueKey: string;
+}
 
+function HeatmapMap({ grid, bounds, gridSize, colorScheme, valueKey }: HeatmapMapProps) {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any | null>(null);
+  const heatmapLayerGroupRef = useRef<any | null>(null);
+
+  // Initialize Map
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (typeof window === "undefined" || !mapContainerRef.current) return;
 
-    const W = canvas.width = canvas.offsetWidth * 2;
-    const H = canvas.height = 400 * 2;
-    ctx.scale(1, 1);
+    let isCancelled = false;
+    let mapInstance: any = null;
+    let resizeObserverInstance: ResizeObserver | null = null;
 
-    // Background
-    ctx.fillStyle = "#0f172a";
-    ctx.fillRect(0, 0, W, H);
+    Promise.all([
+      import("leaflet"),
+      import("leaflet/dist/leaflet.css")
+    ])
+      .then(([L]) => {
+        if (isCancelled) return;
+        if (!mapContainerRef.current) return;
 
-    // Grid
-    const cellW = W / gridSize;
-    const cellH = H / gridSize;
-
-    // Find max value
-    const maxVal = Math.max(1, ...grid.map((g: any) => parseInt(g[valueKey] || "0")));
-
-    // Draw cells
-    for (const cell of grid) {
-      const row = parseInt(cell.row);
-      const col = parseInt(cell.col);
-      const val = parseInt(cell[valueKey] || "0");
-      const intensity = Math.min(1, val / maxVal);
-
-      if (intensity > 0) {
-        const x = col * cellW;
-        const y = row * cellH;
-
-        if (colorScheme === "blue") {
-          ctx.fillStyle = `rgba(59, 130, 246, ${intensity * 0.8})`;
-        } else {
-          const r = Math.round(239 * intensity + 59 * (1 - intensity));
-          const g = Math.round(68 * intensity + 130 * (1 - intensity));
-          ctx.fillStyle = `rgba(${r}, ${g}, 68, ${intensity * 0.8})`;
+        // Prevent double initialization
+        if (mapContainerRef.current.classList.contains("leaflet-container")) {
+          return;
         }
 
-        ctx.beginPath();
-        ctx.roundRect(x + 1, y + 1, cellW - 2, cellH - 2, 3);
-        ctx.fill();
+        const map = L.map(mapContainerRef.current, {
+          zoomControl: false,
+        }).setView([27.3314, 88.6138], 9);
 
-        // Show value if high enough
-        if (intensity > 0.3 && cellW > 30) {
-          ctx.fillStyle = "#ffffff";
-          ctx.font = `bold ${Math.min(14, cellW / 4)}px sans-serif`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(String(val), x + cellW / 2, y + cellH / 2);
+        mapInstance = map;
+
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          subdomains: "abcd",
+          maxZoom: 20
+        }).addTo(map);
+
+        L.control.zoom({ position: "topright" }).addTo(map);
+
+        heatmapLayerGroupRef.current = L.featureGroup().addTo(map);
+
+        setTimeout(() => {
+          if (!isCancelled && map) {
+            map.invalidateSize();
+          }
+        }, 100);
+
+        mapRef.current = map;
+
+        const resizeObserver = new ResizeObserver(() => {
+          if (!isCancelled && map) {
+            map.invalidateSize();
+          }
+        });
+        if (mapContainerRef.current.parentElement) {
+          resizeObserver.observe(mapContainerRef.current.parentElement);
         }
+        resizeObserverInstance = resizeObserver;
+      })
+      .catch((err) => {
+        console.error("Leaflet loading error:", err);
+      });
+
+    return () => {
+      isCancelled = true;
+      if (resizeObserverInstance) {
+        resizeObserverInstance.disconnect();
       }
-    }
+      if (mapInstance) {
+        mapInstance.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []);
 
-    // Grid lines
-    ctx.strokeStyle = "rgba(255,255,255,0.05)";
-    ctx.lineWidth = 0.5;
-    for (let i = 0; i <= gridSize; i++) {
-      ctx.beginPath();
-      ctx.moveTo(i * cellW, 0);
-      ctx.lineTo(i * cellW, H);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(0, i * cellH);
-      ctx.lineTo(W, i * cellH);
-      ctx.stroke();
-    }
+  // Update Heatmap Overlay Layer
+  useEffect(() => {
+    const map = mapRef.current;
+    const heatmapGroup = heatmapLayerGroupRef.current;
+    if (!map || !heatmapGroup || grid.length === 0) return;
 
-    // Labels
-    ctx.fillStyle = "rgba(255,255,255,0.4)";
-    ctx.font = "10px sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText(`${bounds.max_lat}°N`, 5, 15);
-    ctx.fillText(`${bounds.min_lat}°N`, 5, H - 5);
-    ctx.textAlign = "right";
-    ctx.fillText(`${bounds.max_lng}°E`, W - 5, 15);
-    ctx.fillText(`${bounds.min_lng}°E`, W - 5, H - 5);
+    heatmapGroup.clearLayers();
+
+    import("leaflet").then((L) => {
+      const minLat = bounds?.min_lat ? parseFloat(bounds.min_lat) : 26.5;
+      const maxLat = bounds?.max_lat ? parseFloat(bounds.max_lat) : 28.0;
+      const minLng = bounds?.min_lng ? parseFloat(bounds.min_lng) : 88.0;
+      const maxLng = bounds?.max_lng ? parseFloat(bounds.max_lng) : 89.5;
+
+      const maxVal = Math.max(1, ...grid.map((g) => parseInt(g[valueKey] || "0")));
+      
+      // Approximately 111,000 meters per degree latitude/longitude
+      // Calculate dynamic radius to allow overlapping/blending of adjacent grid cells
+      const cellRadiusMeters = ((maxLng - minLng) / gridSize) * 111000 * 1.1;
+
+      grid.forEach((cell) => {
+        const row = parseInt(cell.row);
+        const col = parseInt(cell.col);
+        const val = parseInt(cell[valueKey] || "0");
+        if (val === 0) return;
+
+        const lat = maxLat - ((row + 0.5) / gridSize) * (maxLat - minLat);
+        const lng = minLng + ((col + 0.5) / gridSize) * (maxLng - minLng);
+
+        const intensity = Math.min(1, val / maxVal);
+        const color = colorScheme === "blue" 
+          ? `rgba(59, 130, 246, ${intensity * 0.85})` 
+          : `rgba(239, 68, 68, ${intensity * 0.85})`;
+
+        // Render overlapping circle with radial style opacity for heat-glow effect
+        L.circle([lat, lng], {
+          radius: cellRadiusMeters,
+          stroke: false,
+          fillColor: color,
+          fillOpacity: intensity * 0.7,
+        })
+          .addTo(heatmapGroup)
+          .bindPopup(`<div style="color: #0f172a; font-family: sans-serif; font-size: 11px; padding: 2px;">
+                        <strong>Value:</strong> ${val}
+                      </div>`);
+      });
+    });
   }, [grid, bounds, gridSize, colorScheme, valueKey]);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="w-full rounded-xl"
-      style={{ height: 400 }}
-    />
-  );
+  return <div ref={mapContainerRef} className="w-full rounded-xl overflow-hidden shadow-inner" style={{ height: 400 }} />;
 }
 
 function BarChart({ data, height = 200 }: { data: { label: string; value: number; color: string }[]; height?: number }) {

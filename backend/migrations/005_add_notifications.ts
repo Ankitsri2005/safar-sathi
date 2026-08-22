@@ -1,6 +1,32 @@
 import { Knex } from "knex";
 
 export async function up(knex: Knex): Promise<void> {
+  // Create alert types used by escalation rules
+  await knex.raw(`
+    DO $$ BEGIN
+      CREATE TYPE alert_type_enum AS ENUM (
+        'panic',
+        'restricted_zone_entry',
+        'high_risk_zone_entry',
+        'no_location_update',
+        'route_deviation',
+        'prolonged_stop',
+        'manual'
+      );
+    EXCEPTION WHEN duplicate_object THEN null;
+    END $$;
+  `);
+  // Create alert severity type
+  await knex.raw(`
+    DO $$ BEGIN
+      CREATE TYPE alert_severity AS ENUM (
+        'critical',
+        'high',
+        'medium'
+      );
+    EXCEPTION WHEN duplicate_object THEN null;
+    END $$;
+  `);
   // Notification types
   await knex.raw(`
     DO $$ BEGIN

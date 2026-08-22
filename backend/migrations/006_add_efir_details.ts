@@ -1,6 +1,20 @@
 import { Knex } from "knex";
 
 export async function up(knex: Knex): Promise<void> {
+  // Create E-FIR resolution status type
+  await knex.raw(`
+    DO $$ BEGIN
+      CREATE TYPE efir_status AS ENUM (
+        'draft',
+        'generated',
+        'filed',
+        'closed',
+        'cancelled'
+      );
+    EXCEPTION WHEN duplicate_object THEN null;
+    END $$;
+  `);
+
   // Add new E-FIR columns
   await knex.schema.alterTable("efirs", (t) => {
     t.string("efir_number", 30).unique();
@@ -41,4 +55,5 @@ export async function down(knex: Knex): Promise<void> {
       "resolution_status", "verification_status", "blockchain_hash",
     ]);
   });
+  await knex.raw(`DROP TYPE IF EXISTS efir_status;`);
 }

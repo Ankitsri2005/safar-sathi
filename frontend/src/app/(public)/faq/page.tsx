@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Footer from "@/components/layout/Footer";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { AnimateOnScroll } from "@/components/ui/AnimateOnScroll";
 import { Button } from "@/components/ui/Button";
 import { ChevronDown, HelpCircle, ArrowRight, MessageCircle, Search } from "lucide-react";
@@ -96,6 +97,7 @@ const faqCategories = [
 ];
 
 export default function FAQPage() {
+  const { t } = useLanguage();
   const [openItems, setOpenItems] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -130,9 +132,9 @@ export default function FAQPage() {
             <div className="w-16 h-16 bg-primary/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
               <HelpCircle className="w-8 h-8 text-primary-light" />
             </div>
-            <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">Frequently Asked Questions</h1>
+            <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">{t("faq_title")}</h1>
             <p className="text-lg text-white/50 max-w-xl mx-auto">
-              Find answers to common questions about the Smart Tourist Safety System.
+              {t("faq_subtitle")}
             </p>
           </AnimateOnScroll>
         </div>

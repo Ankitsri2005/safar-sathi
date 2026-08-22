@@ -4,8 +4,11 @@ export interface MockTourist {
   id: string;
   full_name: string;
   id_type: string;
+  id_number?: string;
   phone: string;
   email: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
   trip_start: string;
   trip_end: string;
   status: "active" | "expired" | "revoked";

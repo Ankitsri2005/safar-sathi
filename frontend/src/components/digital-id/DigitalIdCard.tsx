@@ -120,11 +120,11 @@ export function DigitalIdCard({ data, showActions = true, className, compact = f
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f8fafc; }
-          .print-card { background: white; border: 2px solid #1e40af; border-radius: 16px; padding: 32px; max-width: 420px; width: 100%; }
+          .print-card { background: white; border: 2px solid #0f766e; border-radius: 16px; padding: 32px; max-width: 420px; width: 100%; }
           .print-header { text-align: center; margin-bottom: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; }
-          .print-header h1 { font-size: 18px; color: #1e40af; font-weight: 700; }
+          .print-header h1 { font-size: 18px; color: #0f766e; font-weight: 700; }
           .print-header p { font-size: 11px; color: #64748b; margin-top: 4px; }
-          .print-photo { width: 80px; height: 80px; border-radius: 50%; border: 3px solid #1e40af; margin: 12px auto; object-fit: cover; background: #eff6ff; display: flex; align-items: center; justify-content: center; color: #1e40af; font-size: 32px; }
+          .print-photo { width: 80px; height: 80px; border-radius: 50%; border: 3px solid #0f766e; margin: 12px auto; object-fit: cover; background: #f0fdfa; display: flex; align-items: center; justify-content: center; color: #0f766e; font-size: 32px; }
           .print-name { text-align: center; font-size: 16px; font-weight: 600; color: #0f172a; margin-top: 8px; }
           .print-id { text-align: center; font-family: monospace; font-size: 12px; color: #64748b; margin-top: 4px; }
           .print-details { margin: 20px 0; }
@@ -194,13 +194,13 @@ export function DigitalIdCard({ data, showActions = true, className, compact = f
     c.fillStyle = "#ffffff";
     c.fillRect(0, 0, width, height);
 
-    c.strokeStyle = "#1e40af";
+    c.strokeStyle = "#0f766e";
     c.lineWidth = 2;
     c.beginPath();
     c.roundRect(1, 1, width - 2, height - 2, 16);
     c.stroke();
 
-    c.fillStyle = "#1e40af";
+    c.fillStyle = "#0f766e";
     c.font = "bold 16px Inter, sans-serif";
     c.textAlign = "center";
     c.fillText("Smart Tourist Safety System", width / 2, 40);
@@ -306,7 +306,7 @@ export function DigitalIdCard({ data, showActions = true, className, compact = f
         c.clip();
         c.drawImage(img, width / 2 - 36, 79, 72, 72);
         c.restore();
-        c.strokeStyle = "#1e40af";
+        c.strokeStyle = "#0f766e";
         c.lineWidth = 2;
         c.beginPath();
         c.arc(width / 2, 115, 36, 0, Math.PI * 2);
@@ -315,11 +315,11 @@ export function DigitalIdCard({ data, showActions = true, className, compact = f
       };
       img.src = data.photo_url;
     } else {
-      c.fillStyle = "#eff6ff";
+      c.fillStyle = "#f0fdfa";
       c.beginPath();
       c.arc(width / 2, 115, 36, 0, Math.PI * 2);
       c.fill();
-      c.fillStyle = "#1e40af";
+      c.fillStyle = "#0f766e";
       c.font = "28px sans-serif";
       c.fillText("👤", width / 2, 125);
       drawText();

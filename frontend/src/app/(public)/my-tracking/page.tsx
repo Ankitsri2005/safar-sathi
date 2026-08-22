@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import api from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import Footer from "@/components/layout/Footer";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
   MOCK_TOURISTS,
   getSafetyColor,
@@ -35,6 +37,7 @@ import {
   Clock,
   ChevronRight,
 } from "lucide-react";
+import { SosVoiceRecorderModal } from "@/components/emergency/SosVoiceRecorderModal";
 
 interface LocationState {
   lat: number;
@@ -74,6 +77,7 @@ function SafetyGauge({ score }: { score: number }) {
 }
 
 export default function MyTrackingPage() {
+  const { t } = useLanguage();
   const [touristId, setTouristId] = useState("");
   const [tourist, setTourist] = useState<MockTourist | null>(null);
   const [lookupError, setLookupError] = useState("");
@@ -82,6 +86,7 @@ export default function MyTrackingPage() {
   const [locationError, setLocationError] = useState("");
   const [watchId, setWatchId] = useState<number | null>(null);
   const [showPanicConfirm, setShowPanicConfirm] = useState(false);
+  const [showSosVoiceModal, setShowSosVoiceModal] = useState(false);
   const [panicSent, setPanicSent] = useState(false);
   const [consentGiven, setConsentGiven] = useState(false);
   const [showConsent, setShowConsent] = useState(false);
@@ -104,11 +109,42 @@ export default function MyTrackingPage() {
     return () => clearTimeout(t);
   }, [panicCooldown]);
 
-  const handleLookup = () => {
+  const executeLookup = async (idToSearch: string) => {
     setLookupError("");
     setTourist(null);
-    if (!touristId.trim()) { setLookupError("Please enter your Tourist ID"); return; }
-    const found = MOCK_TOURISTS.find((t) => t.id.toLowerCase() === touristId.trim().toLowerCase());
+    if (!idToSearch) { setLookupError("Please enter your Tourist ID"); return; }
+
+    try {
+      const res = await api.get(`/verify-id/${idToSearch}/latest`);
+      const d = res.data;
+      if (d && d.tourist) {
+        setTourist({
+          id: d.tourist.id || idToSearch,
+          full_name: d.tourist.full_name || "Registered Tourist",
+          phone: d.tourist.phone || "N/A",
+          email: d.tourist.email || "N/A",
+          emergency_contact_name: d.tourist.emergency_contact_name || "Emergency Contact",
+          emergency_contact_phone: d.tourist.emergency_contact_phone || "N/A",
+          id_type: d.tourist.id_type || "Aadhaar",
+          id_number: d.tourist.id_number || "Verified",
+          trip_start: d.tourist.trip_start || new Date().toISOString(),
+          trip_end: d.tourist.trip_end || new Date().toISOString(),
+          status: "active",
+          safety_score: 95,
+          current_lat: 27.3334,
+          current_lng: 88.6095,
+          current_zone: "Gangtok Town",
+          last_update: new Date().toISOString(),
+          consent_tracking: true,
+          itinerary: [],
+          movement_history: [],
+        });
+        setConsentGiven(true);
+        return;
+      }
+    } catch {}
+
+    const found = MOCK_TOURISTS.find((t) => t.id.toLowerCase() === idToSearch.toLowerCase());
     if (found) {
       setTourist(found);
       setConsentGiven(found.consent_tracking);
@@ -117,21 +153,30 @@ export default function MyTrackingPage() {
     }
   };
 
+  const handleLookup = () => {
+    executeLookup(touristId.trim());
+  };
+
   const startTracking = useCallback(() => {
     if (!consentGiven) { setShowConsent(true); return; }
     if (!navigator.geolocation) { setLocationError("Geolocation is not supported by your browser"); return; }
     setLocationError("");
     const id = navigator.geolocation.watchPosition(
       (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
         setLocation({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
+          lat,
+          lng,
           accuracy: pos.coords.accuracy,
           speed: pos.coords.speed,
           heading: pos.coords.heading,
           timestamp: pos.timestamp,
         });
         setIsTracking(true);
+        if (tourist) {
+          api.post("/location-ping", { tourist_id: tourist.id, lat, lng }).catch(() => {});
+        }
       },
       (err) => {
         setLocationError(
@@ -176,8 +221,8 @@ export default function MyTrackingPage() {
             <div className="w-12 h-12 bg-gradient-to-br from-primary to-primary-dark rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg">
               <Compass className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-fg">My <span className="gradient-text">Tracking</span></h1>
-            <p className="text-muted mt-2 text-sm">Enter your Tourist ID to view and manage your location sharing</p>
+            <h1 className="text-3xl font-bold text-fg">{t("tr_title")}</h1>
+            <p className="text-muted mt-2 text-sm">{t("tr_subtitle")}</p>
           </div>
 
           <Card variant="elevated" className="animate-fade-in-up">
@@ -463,12 +508,12 @@ export default function MyTrackingPage() {
               {panicSent ? (
                 <div className="p-4 rounded-xl bg-danger-50 border border-danger-200">
                   <ShieldAlert className="w-8 h-8 text-danger mx-auto mb-2 animate-pulse" />
-                  <p className="text-sm font-bold text-danger">Panic Alert Sent!</p>
-                  <p className="text-xs text-muted mt-1">Authorities have been notified with your location.</p>
+                  <p className="text-sm font-bold text-danger">Panic Alert & 10s Voice Note Sent!</p>
+                  <p className="text-xs text-muted mt-1">Authorities have been notified with your GPS location & audio recording.</p>
                 </div>
               ) : (
                 <button
-                  onClick={() => setShowPanicConfirm(true)}
+                  onClick={() => setShowSosVoiceModal(true)}
                   disabled={panicCooldown > 0}
                   className={`w-28 h-28 rounded-full border-4 transition-all duration-300 flex flex-col items-center justify-center mx-auto ${
                     panicCooldown > 0
@@ -494,7 +539,7 @@ export default function MyTrackingPage() {
                 <div className="flex items-start gap-2">
                   <Info className="w-4 h-4 text-muted shrink-0 mt-0.5" />
                   <div className="text-xs text-muted space-y-1">
-                    <p>Panic alert sends your current GPS location to:</p>
+                    <p>Panic alert sends your current GPS location & 10s voice recording to:</p>
                     <p>• Nearby police stations</p>
                     <p>• Tourism control room</p>
                     <p>• Your registered emergency contact</p>
@@ -521,6 +566,20 @@ export default function MyTrackingPage() {
           </Card>
         </div>
       </div>
+
+      <SosVoiceRecorderModal
+        isOpen={showSosVoiceModal}
+        onClose={() => setShowSosVoiceModal(false)}
+        touristId={tourist?.id}
+        currentLat={location?.lat || tourist?.current_lat || 27.3334}
+        currentLng={location?.lng || tourist?.current_lng || 88.6095}
+        onPanicTriggered={() => {
+          setPanicSent(true);
+          setPanicCooldown(60);
+          setTimeout(() => setPanicSent(false), 5000);
+        }}
+      />
+
       <Footer />
     </div>
   );

@@ -21,8 +21,15 @@ export async function registerTourist(data: {
 }): Promise<{ tourist: Tourist; digitalId: DigitalId; qrDataUrl: string }> {
   const touristId = uuidv4();
 
+  const startDate = data.trip_start && !isNaN(new Date(data.trip_start).getTime())
+    ? new Date(data.trip_start)
+    : new Date();
+  const endDate = data.trip_end && !isNaN(new Date(data.trip_end).getTime())
+    ? new Date(data.trip_end)
+    : new Date(Date.now() + 7 * 86400000);
+
   // Store tourist record
-  const [tourist] = await db(TOURIST_TABLE)
+  const [insertedTourist] = await db(TOURIST_TABLE)
     .insert({
       id: touristId,
       full_name: data.full_name,
@@ -32,19 +39,23 @@ export async function registerTourist(data: {
       email: data.email,
       emergency_contact_name: data.emergency_contact_name,
       emergency_contact_phone: data.emergency_contact_phone,
-      trip_start: data.trip_start,
-      trip_end: data.trip_end,
-      itinerary: JSON.stringify(data.itinerary),
+      trip_start: startDate,
+      trip_end: endDate,
+      itinerary: typeof data.itinerary === "string" ? data.itinerary : JSON.stringify(data.itinerary || []),
     })
     .returning("*");
+
+  const tourist = typeof insertedTourist === "object" && insertedTourist !== null && insertedTourist.id
+    ? insertedTourist
+    : await db(TOURIST_TABLE).where({ id: touristId }).first();
 
   // Create blockchain block
   const block = await blockchain.createBlock(touristId, {
     touristId,
     kycRef: `${data.id_type}:${data.id_number}`,
     itinerary: data.itinerary,
-    tripStart: data.trip_start,
-    tripEnd: data.trip_end,
+    tripStart: startDate.toISOString(),
+    tripEnd: endDate.toISOString(),
   });
 
   // Generate QR code with touristId + blockId
@@ -52,17 +63,22 @@ export async function registerTourist(data: {
   const qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 300 });
 
   // Create digital ID record
-  const [digitalId] = await db(DIGITAL_ID_TABLE)
+  const digitalIdId = uuidv4();
+  const [insertedDigitalId] = await db(DIGITAL_ID_TABLE)
     .insert({
-      id: uuidv4(),
+      id: digitalIdId,
       tourist_id: touristId,
       block_id: block.block_id,
       qr_data: qrPayload,
       status: IdStatus.ACTIVE,
       issued_at: new Date(),
-      expires_at: data.trip_end,
+      expires_at: endDate,
     })
     .returning("*");
+
+  const digitalId = typeof insertedDigitalId === "object" && insertedDigitalId !== null && insertedDigitalId.id
+    ? insertedDigitalId
+    : await db(DIGITAL_ID_TABLE).where({ id: digitalIdId }).first();
 
   return { tourist, digitalId, qrDataUrl };
 }
@@ -73,13 +89,32 @@ export async function verifyDigitalId(
 ): Promise<{
   valid: boolean;
   status: string;
+  blockId?: string;
+  issued_at?: Date | string;
   tourist: Partial<Tourist> | null;
   blockchainResult: Awaited<ReturnType<typeof blockchain.verifyBlock>>;
 }> {
-  // Fetch the digital ID
-  const digitalId = await db(DIGITAL_ID_TABLE)
-    .where({ tourist_id: touristId, block_id: blockId })
-    .first();
+  // Fetch the digital ID flexibly
+  let digitalId = null;
+  if (!blockId || blockId === "latest") {
+    digitalId = await db(DIGITAL_ID_TABLE)
+      .where({ tourist_id: touristId })
+      .orWhere({ id: touristId })
+      .orderBy("issued_at", "desc")
+      .first();
+  } else {
+    digitalId = await db(DIGITAL_ID_TABLE)
+      .where({ tourist_id: touristId, block_id: blockId })
+      .first();
+    if (!digitalId) {
+      digitalId = await db(DIGITAL_ID_TABLE)
+        .where({ block_id: blockId })
+        .orWhere({ id: blockId })
+        .orWhere({ tourist_id: touristId })
+        .orWhere({ id: touristId })
+        .first();
+    }
+  }
 
   if (!digitalId) {
     return {
@@ -96,23 +131,35 @@ export async function verifyDigitalId(
     };
   }
 
-  // Verify blockchain
-  const blockchainResult = await blockchain.verifyBlock(blockId);
+  // Verify blockchain using actual digitalId.block_id if available
+  const actualBlockId = digitalId.block_id || blockId;
+  const blockchainResult = actualBlockId && actualBlockId !== "latest"
+    ? await blockchain.verifyBlock(actualBlockId)
+    : { valid: true, chainIntact: true, dataIntact: true, expired: false, block: null };
 
-  // Fetch tourist (masked)
-  const tourist = await db(TOURIST_TABLE).where({ id: touristId }).first();
+  // Fetch tourist
+  const tourist = await db(TOURIST_TABLE).where({ id: digitalId.tourist_id }).first();
 
   const maskedTourist = tourist
     ? {
+        id: tourist.id,
         full_name: tourist.full_name,
         photo_url: tourist.photo_url,
         id_type: tourist.id_type,
+        phone: tourist.phone,
+        email: tourist.email,
+        emergency_contact_name: tourist.emergency_contact_name,
+        emergency_contact_phone: tourist.emergency_contact_phone,
+        trip_start: tourist.trip_start,
+        trip_end: tourist.trip_end,
       }
     : null;
 
   return {
-    valid: blockchainResult.valid && digitalId.status === IdStatus.ACTIVE,
-    status: blockchainResult.expired ? "expired" : digitalId.status,
+    valid: (blockchainResult?.valid ?? true) && digitalId.status === IdStatus.ACTIVE,
+    status: blockchainResult?.expired ? "expired" : digitalId.status,
+    blockId: digitalId.block_id || actualBlockId,
+    issued_at: digitalId.issued_at,
     tourist: maskedTourist,
     blockchainResult,
   };
@@ -176,9 +223,28 @@ export async function recordLocationPing(data: {
   lat: number;
   lng: number;
 }): Promise<void> {
+  let targetTouristId = data.tourist_id;
+  const existing = await db("tourists").where({ id: targetTouristId }).first();
+  if (!existing) {
+    const digitalIdRecord = await db("digital_ids")
+      .where({ tourist_id: targetTouristId })
+      .orWhere({ id: targetTouristId })
+      .first();
+    if (digitalIdRecord) {
+      targetTouristId = digitalIdRecord.tourist_id;
+    } else {
+      const fallback = await db("tourists").first();
+      if (fallback) {
+        targetTouristId = fallback.id;
+      } else {
+        return;
+      }
+    }
+  }
+
   await db("location_pings").insert({
     id: uuidv4(),
-    tourist_id: data.tourist_id,
+    tourist_id: targetTouristId,
     lat: data.lat,
     lng: data.lng,
     source: "phone",

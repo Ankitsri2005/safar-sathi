@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Footer from "@/components/layout/Footer";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { AnimateOnScroll } from "@/components/ui/AnimateOnScroll";
 import { Button } from "@/components/ui/Button";
+import { SosVoiceRecorderModal } from "@/components/emergency/SosVoiceRecorderModal";
 import {
   Phone,
   Shield,
@@ -45,6 +48,9 @@ const stateTourism = [
 ];
 
 export default function EmergencyPage() {
+  const { t } = useLanguage();
+  const [showSosModal, setShowSosModal] = useState(false);
+
   return (
     <div className="min-h-screen">
       {/* Hero */}
@@ -62,10 +68,19 @@ export default function EmergencyPage() {
               </span>
               <span className="text-xs font-medium text-white/90">Available 24/7 Across India</span>
             </div>
-            <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">Emergency Contacts</h1>
-            <p className="text-lg text-white/60 max-w-xl mx-auto">
-              Help is always just a call away. Save these numbers before you travel.
+            <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">{t("sos_title")}</h1>
+            <p className="text-lg text-white/60 max-w-xl mx-auto mb-8">
+              {t("sos_subtitle")}
             </p>
+
+            <Button
+              variant="accent"
+              size="lg"
+              className="py-4 px-8 text-lg font-bold shadow-2xl hover:scale-105 transition-transform"
+              onClick={() => setShowSosModal(true)}
+            >
+              🚨 Press for 10s Voice SOS Alert
+            </Button>
           </AnimateOnScroll>
         </div>
       </section>
@@ -166,18 +181,28 @@ export default function EmergencyPage() {
       <section className="py-16 bg-gradient-to-br from-primary to-primary-dark">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <AnimateOnScroll>
-            <h2 className="text-3xl font-bold text-white mb-4">Use the In-App Panic Button</h2>
+            <h2 className="text-3xl font-bold text-white mb-4">Use the 10s Voice SOS Button</h2>
             <p className="text-white/60 mb-8 max-w-md mx-auto">
-              The fastest way to get help — one tap sends your GPS location to all nearby authorities instantly.
+              The fastest way to get help — one tap records 10s ambient audio and dispatches your GPS location to all nearby authorities instantly.
             </p>
-            <Link href="/register">
-              <Button variant="accent" size="lg" iconRight={<ArrowRight className="w-5 h-5" />}>
-                Register for Digital ID
-              </Button>
-            </Link>
+            <Button
+              variant="accent"
+              size="lg"
+              iconRight={<ArrowRight className="w-5 h-5" />}
+              onClick={() => setShowSosModal(true)}
+            >
+              Trigger 10-Second Voice SOS
+            </Button>
           </AnimateOnScroll>
         </div>
       </section>
+
+      <SosVoiceRecorderModal
+        isOpen={showSosModal}
+        onClose={() => setShowSosModal(false)}
+        currentLat={27.3334}
+        currentLng={88.6095}
+      />
 
       <Footer />
     </div>

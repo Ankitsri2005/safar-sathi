@@ -17,7 +17,7 @@
 - [ ] Database created and migrations run
 - [ ] Backend starts without errors (npm run dev)
 - [ ] Frontend starts without errors (npm run dev)
-- [ ] Mapbox access token configured
+- [x] Mapbox access token configured
 - [ ] Git initial commit
 
 ## Deliverable

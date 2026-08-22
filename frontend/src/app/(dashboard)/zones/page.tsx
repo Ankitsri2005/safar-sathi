@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import api from "@/lib/api";
 import { Zone, RiskLevel } from "@/types";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -19,189 +19,210 @@ import {
   Info,
   RotateCcw,
   Check,
+  Navigation,
 } from "lucide-react";
-
-const RISK_COLORS: Record<string, { fill: string; stroke: string; bg: string; badge: "success" | "warning" | "danger" | "accent" }> = {
-  low: { fill: "rgba(34,197,94,0.15)", stroke: "#22c55e", bg: "bg-success-50", badge: "success" },
-  medium: { fill: "rgba(234,179,8,0.15)", stroke: "#eab308", bg: "bg-warning-50", badge: "warning" },
-  high: { fill: "rgba(239,68,68,0.15)", stroke: "#ef4444", bg: "bg-danger-50", badge: "danger" },
-  restricted: { fill: "rgba(139,92,246,0.15)", stroke: "#8b5cf6", bg: "bg-accent-50", badge: "accent" },
+const RISK_COLORS: Record<string, { stroke: string; bg: string; badge: "success" | "warning" | "danger" | "accent" }> = {
+  low: { stroke: "#22c55e", bg: "bg-success-50", badge: "success" },
+  medium: { stroke: "#eab308", bg: "bg-warning-50", badge: "warning" },
+  high: { stroke: "#ef4444", bg: "bg-danger-50", badge: "danger" },
+  restricted: { stroke: "#8b5cf6", bg: "bg-accent-50", badge: "accent" },
 };
 
-interface MapCanvasProps {
+interface ZonesMapProps {
   zones: Zone[];
-  drawingPoints: { x: number; y: number }[];
-  onCanvasClick?: (x: number, y: number) => void;
-  mode: "view" | "draw" | "edit";
-  editingZoneId?: string | null;
+  drawingPoints: { lng: number; lat: number }[];
+  onMapClick?: (lng: number, lat: number) => void;
+  mode: "view" | "draw";
 }
 
-function MapCanvas({ zones, drawingPoints, onCanvasClick, mode, editingZoneId }: MapCanvasProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [hovered, setHovered] = useState<string | null>(null);
+function ZonesMap({ zones, drawingPoints, onMapClick, mode }: ZonesMapProps) {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any | null>(null);
+  const zonesLayerGroupRef = useRef<any | null>(null);
+  const drawingLayerGroupRef = useRef<any | null>(null);
 
-  const toCanvas = useCallback((lat: number, lng: number, w: number, h: number) => {
-    const minLat = 26.5, maxLat = 28.0, minLng = 88.0, maxLng = 89.5;
-    const x = ((lng - minLng) / (maxLng - minLng)) * w;
-    const y = h - ((lat - minLat) / (maxLat - minLat)) * h;
-    return { x, y };
-  }, []);
+  // Initialize Map
+  useEffect(() => {
+    if (typeof window === "undefined" || !mapContainerRef.current) return;
 
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const w = canvas.width;
-    const h = canvas.height;
+    let isCancelled = false;
+    let mapInstance: any = null;
+    let resizeObserverInstance: ResizeObserver | null = null;
 
-    ctx.clearRect(0, 0, w, h);
+    Promise.all([
+      import("leaflet"),
+      import("leaflet/dist/leaflet.css")
+    ])
+      .then(([L]) => {
+        if (isCancelled) return;
+        if (!mapContainerRef.current) return;
 
-    // Grid
-    ctx.strokeStyle = "rgba(255,255,255,0.06)";
-    ctx.lineWidth = 1;
-    for (let x = 0; x < w; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
-    for (let y = 0; y < h; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+        // Prevent double initialization
+        if (mapContainerRef.current.classList.contains("leaflet-container")) {
+          return;
+        }
 
-    // Zones
-    zones.forEach((zone) => {
-      try {
-        const geo = typeof zone.polygon_geojson === "string"
-          ? JSON.parse(zone.polygon_geojson)
-          : zone.polygon_geojson;
-        const coords = geo?.geometry?.coordinates?.[0];
-        if (!coords || coords.length < 3) return;
+        const map = L.map(mapContainerRef.current, {
+          zoomControl: false,
+        }).setView([27.3314, 88.6138], 9);
 
-        const colors = RISK_COLORS[zone.risk_level] || RISK_COLORS.medium;
-        const isHovered = hovered === zone.id;
-        const isEditing = editingZoneId === zone.id;
+        mapInstance = map;
 
-        const points = coords.map((c: number[]) => toCanvas(c[1], c[0], w, h));
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          subdomains: "abcd",
+          maxZoom: 20
+        }).addTo(map);
 
-        ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y);
-        points.forEach((p: { x: number; y: number }) => ctx.lineTo(p.x, p.y));
-        ctx.closePath();
+        L.control.zoom({ position: "topright" }).addTo(map);
 
-        ctx.fillStyle = isHovered || isEditing ? colors.fill.replace("0.15", "0.3") : colors.fill;
-        ctx.fill();
-        ctx.strokeStyle = colors.stroke;
-        ctx.lineWidth = isEditing ? 3 : isHovered ? 2.5 : 2;
-        ctx.stroke();
+        zonesLayerGroupRef.current = L.featureGroup().addTo(map);
+        drawingLayerGroupRef.current = L.featureGroup().addTo(map);
 
-        // Label
-        const cx = points.reduce((s: number, p: { x: number; y: number }) => s + p.x, 0) / points.length;
-        const cy = points.reduce((s: number, p: { x: number; y: number }) => s + p.y, 0) / points.length;
-        ctx.fillStyle = colors.stroke;
-        ctx.font = "bold 11px Inter, sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText(zone.name, cx, cy - 4);
-        ctx.font = "9px Inter, sans-serif";
-        ctx.fillStyle = "rgba(255,255,255,0.5)";
-        ctx.fillText(zone.risk_level.toUpperCase(), cx, cy + 10);
-      } catch {}
-    });
+        setTimeout(() => {
+          if (!isCancelled && map) {
+            map.invalidateSize();
+          }
+        }, 100);
 
-    // Drawing points
-    if (drawingPoints.length > 0) {
-      ctx.beginPath();
-      ctx.moveTo(drawingPoints[0].x, drawingPoints[0].y);
-      drawingPoints.forEach((p) => ctx.lineTo(p.x, p.y));
-      ctx.strokeStyle = "#3b82f6";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([5, 5]);
-      ctx.stroke();
-      ctx.setLineDash([]);
+        mapRef.current = map;
 
-      drawingPoints.forEach((p, i) => {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-        ctx.fillStyle = i === 0 ? "#22c55e" : "#3b82f6";
-        ctx.fill();
-        ctx.strokeStyle = "#fff";
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        const resizeObserver = new ResizeObserver(() => {
+          if (!isCancelled && map) {
+            map.invalidateSize();
+          }
+        });
+        if (mapContainerRef.current.parentElement) {
+          resizeObserver.observe(mapContainerRef.current.parentElement);
+        }
+        resizeObserverInstance = resizeObserver;
+      })
+      .catch((err) => {
+        console.error("Leaflet loading error:", err);
       });
 
-      if (drawingPoints.length >= 3) {
-        ctx.beginPath();
-        ctx.moveTo(drawingPoints[0].x, drawingPoints[0].y);
-        drawingPoints.forEach((p) => ctx.lineTo(p.x, p.y));
-        ctx.closePath();
-        ctx.fillStyle = "rgba(59,130,246,0.15)";
-        ctx.fill();
-        ctx.strokeStyle = "#3b82f6";
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        ctx.stroke();
-        ctx.setLineDash([]);
+    return () => {
+      isCancelled = true;
+      if (resizeObserverInstance) {
+        resizeObserverInstance.disconnect();
       }
-    }
-  }, [zones, drawingPoints, hovered, editingZoneId, toCanvas]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const resize = () => {
-      const parent = canvas.parentElement;
-      if (parent) {
-        canvas.width = parent.clientWidth;
-        canvas.height = parent.clientHeight;
+      if (mapInstance) {
+        mapInstance.remove();
+        mapRef.current = null;
       }
-      draw();
     };
-    resize();
-    window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
-  }, [draw]);
+  }, []);
 
-  useEffect(() => { draw(); }, [draw]);
+  // Update Zones Layer
+  useEffect(() => {
+    const map = mapRef.current;
+    const zonesGroup = zonesLayerGroupRef.current;
+    if (!map || !zonesGroup) return;
 
-  const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!onCanvasClick || mode === "view") return;
-    const canvas = canvasRef.current!;
-    const rect = canvas.getBoundingClientRect();
-    onCanvasClick(e.clientX - rect.left, e.clientY - rect.top);
-  };
+    zonesGroup.clearLayers();
 
-  return (
-    <div className="relative w-full h-full bg-gradient-to-br from-surface to-surface-light rounded-xl border border-border overflow-hidden">
-      <canvas
-        ref={canvasRef}
-        className={`w-full h-full ${mode === "draw" ? "cursor-crosshair" : "cursor-default"}`}
-        onClick={handleClick}
-        onMouseMove={(e) => {
-          if (mode !== "view") return;
-          const canvas = canvasRef.current!;
-          const rect = canvas.getBoundingClientRect();
-          const mx = e.clientX - rect.left;
-          const my = e.clientY - rect.top;
-          const w = canvas.width;
-          const h = canvas.height;
-          let found: string | null = null;
-          for (const zone of zones) {
-            try {
-              const geo = typeof zone.polygon_geojson === "string" ? JSON.parse(zone.polygon_geojson) : zone.polygon_geojson;
-              const coords = geo?.geometry?.coordinates?.[0];
-              if (!coords || coords.length < 3) continue;
-              const points = coords.map((c: number[]) => toCanvas(c[1], c[0], w, h));
-              let inside = false;
-              for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-                const xi = points[i].x, yi = points[i].y;
-                const xj = points[j].x, yj = points[j].y;
-                if ((yi > my) !== (yj > my) && mx < ((xj - xi) * (my - yi)) / (yj - yi) + xi) inside = !inside;
-              }
-              if (inside) { found = zone.id; break; }
-            } catch {}
-          }
-          setHovered(found);
-        }}
-      />
-      <div className="absolute bottom-2 left-2 px-2 py-1 rounded bg-black/40 text-[10px] text-white/60 backdrop-blur-sm">
-        Sikkim Region | 26.5°N–28°N, 88°E–89.5°E
-      </div>
-    </div>
-  );
+    import("leaflet").then((L) => {
+      zones.forEach((zone) => {
+        try {
+          const geo = typeof zone.polygon_geojson === "string"
+            ? JSON.parse(zone.polygon_geojson)
+            : zone.polygon_geojson;
+          
+          const coords = geo?.geometry?.coordinates?.[0];
+          if (!coords || coords.length < 3) return;
+
+          const latlngs = coords.map((c: number[]) => [c[1], c[0]] as [number, number]);
+
+          const color =
+            zone.risk_level === "low" ? "#22c55e" :
+            zone.risk_level === "medium" ? "#eab308" :
+            zone.risk_level === "high" ? "#ef4444" :
+            zone.risk_level === "restricted" ? "#8b5cf6" : "#94a3b8";
+
+          const poly = L.polygon(latlngs, {
+            color,
+            weight: 2,
+            fillColor: color,
+            fillOpacity: 0.2,
+          }).addTo(zonesGroup);
+
+          poly.bindTooltip(zone.name, {
+            permanent: true,
+            direction: "center",
+            className: "leaflet-zone-label",
+          });
+        } catch {}
+      });
+
+      // Automatically focus and fit map to match the filtered zones list
+      if (zones.length > 0 && zonesGroup.getLayers().length > 0) {
+        try {
+          map.fitBounds(zonesGroup.getBounds(), { padding: [40, 40], maxZoom: 14 });
+        } catch {}
+      }
+    });
+  }, [zones]);
+
+  // Update Drawing Layer
+  useEffect(() => {
+    const map = mapRef.current;
+    const drawingGroup = drawingLayerGroupRef.current;
+    if (!map || !drawingGroup) return;
+
+    drawingGroup.clearLayers();
+
+    if (mode !== "draw" || drawingPoints.length === 0) return;
+
+    import("leaflet").then((L) => {
+      const latlngs = drawingPoints.map((p) => [p.lat, p.lng] as [number, number]);
+
+      if (drawingPoints.length >= 2) {
+        if (drawingPoints.length >= 3) {
+          L.polygon(latlngs, {
+            color: "#14b8a6",
+            weight: 2,
+            dashArray: "5, 5",
+            fillColor: "#14b8a6",
+            fillOpacity: 0.15,
+          }).addTo(drawingGroup);
+        } else {
+          L.polyline(latlngs, {
+            color: "#14b8a6",
+            weight: 2.5,
+            dashArray: "3, 2",
+          }).addTo(drawingGroup);
+        }
+      }
+
+      drawingPoints.forEach((p) => {
+        L.circleMarker([p.lat, p.lng], {
+          radius: 6,
+          fillColor: "#14b8a6",
+          fillOpacity: 1,
+          color: "#ffffff",
+          weight: 2,
+        }).addTo(drawingGroup);
+      });
+    });
+  }, [drawingPoints, mode]);
+
+  // Map Click Listener
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const handleMapClick = (e: any) => {
+      if (mode !== "draw" || !onMapClick) return;
+      onMapClick(e.latlng.lng, e.latlng.lat);
+    };
+
+    map.on("click", handleMapClick);
+    return () => {
+      map.off("click", handleMapClick);
+    };
+  }, [mode, onMapClick]);
+
+  return <div ref={mapContainerRef} className="w-full h-full" />;
 }
 
 export default function ZonesPage() {
@@ -213,7 +234,7 @@ export default function ZonesPage() {
   const [filterRisk, setFilterRisk] = useState<string>("all");
   const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
   const [mode, setMode] = useState<"view" | "draw">("view");
-  const [drawingPoints, setDrawingPoints] = useState<{ x: number; y: number }[]>([]);
+  const [drawingPoints, setDrawingPoints] = useState<{ lng: number; lat: number }[]>([]);
   const [form, setForm] = useState({ name: "", risk_level: RiskLevel.MEDIUM, description: "" });
   const [loading, setLoading] = useState(false);
 
@@ -237,31 +258,16 @@ export default function ZonesPage() {
     return true;
   });
 
-  const canvasToGeo = (cx: number, cy: number, canvasW: number, canvasH: number) => {
-    const minLat = 26.5, maxLat = 28.0, minLng = 88.0, maxLng = 89.5;
-    const lng = minLng + (cx / canvasW) * (maxLng - minLng);
-    const lat = maxLat - (cy / canvasH) * (maxLat - minLat);
-    return [lng, lat];
-  };
-
-  const handleCanvasClick = (cx: number, cy: number) => {
+  const handleMapClick = (lng: number, lat: number) => {
     if (mode !== "draw") return;
-    const canvas = document.querySelector("canvas");
-    if (!canvas) return;
-    const [lng, lat] = canvasToGeo(cx, cy, canvas.width, canvas.height);
-    setDrawingPoints((prev) => [...prev, { x: cx, y: cy, lat, lng } as any]);
+    setDrawingPoints((prev) => [...prev, { lng, lat }]);
   };
 
   const handleCreate = async () => {
     if (drawingPoints.length < 3) return;
-    const canvas = document.querySelector("canvas");
-    if (!canvas) return;
 
-    const coords = drawingPoints.map((p: any) => {
-      const [lng, lat] = canvasToGeo(p.x, p.y, canvas.width, canvas.height);
-      return [lng, lat];
-    });
-    coords.push(coords[0]);
+    const coords = drawingPoints.map((p) => [p.lng, p.lat]);
+    coords.push(coords[0]); // Close polygon
 
     const polygon = {
       type: "Feature",
@@ -280,15 +286,10 @@ export default function ZonesPage() {
 
   const handleUpdate = async () => {
     if (!editingZone) return;
-    const canvas = document.querySelector("canvas");
-    if (!canvas) return;
 
     let polygon;
     if (drawingPoints.length >= 3) {
-      const coords = drawingPoints.map((p: any) => {
-        const [lng, lat] = canvasToGeo(p.x, p.y, canvas.width, canvas.height);
-        return [lng, lat];
-      });
+      const coords = drawingPoints.map((p) => [p.lng, p.lat]);
       coords.push(coords[0]);
       polygon = { type: "Feature", geometry: { type: "Polygon", coordinates: [coords] } };
     } else {
@@ -376,10 +377,10 @@ export default function ZonesPage() {
         <div className="lg:col-span-2">
           <Card variant="elevated" padding="none" className="overflow-hidden">
             <div className="h-[500px]">
-              <MapCanvas
+              <ZonesMap
                 zones={filteredZones}
                 drawingPoints={drawingPoints}
-                onCanvasClick={handleCanvasClick}
+                onMapClick={handleMapClick}
                 mode={mode === "draw" ? "draw" : "view"}
               />
             </div>

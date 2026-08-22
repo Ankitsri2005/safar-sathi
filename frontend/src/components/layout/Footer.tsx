@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Shield, Phone, ExternalLink, Heart } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const footerLinks = {
   system: [
@@ -27,6 +28,7 @@ const footerLinks = {
 };
 
 export default function Footer() {
+  const { t } = useLanguage();
   return (
     <footer className="bg-surface text-gray-400 border-t border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -43,8 +45,7 @@ export default function Footer() {
               </div>
             </div>
             <p className="text-sm text-gray-500 leading-relaxed mb-5 max-w-xs">
-              Government of India initiative for ensuring tourist safety through
-              blockchain-secured digital identities and real-time monitoring.
+              {t("foot_desc")}
             </p>
             <div className="space-y-2.5">
               <a href="tel:112" className="flex items-center gap-3 text-sm hover:text-accent transition-colors">
@@ -109,8 +110,7 @@ export default function Footer() {
 
         <div className="mt-12 pt-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-xs text-gray-600">
-            &copy; {new Date().getFullYear()} Smart Tourist Safety Monitoring & Incident Response System.
-            Ministry of Tourism, Government of India.
+            &copy; {new Date().getFullYear()} {t("foot_title")}. {t("foot_copy")}
           </p>
           <div className="flex items-center gap-4 text-xs text-gray-600">
             <span className="flex items-center gap-1">

@@ -85,7 +85,8 @@ export async function locationPing(req: Request, res: Response) {
   try {
     await touristService.recordLocationPing(req.body);
     res.json({ message: "Location recorded" });
-  } catch {
-    res.status(500).json({ error: "Failed to record location" });
+  } catch (err: any) {
+    console.error("Location ping error:", err?.message || err);
+    res.status(500).json({ error: "Failed to record location", details: err?.message });
   }
 }

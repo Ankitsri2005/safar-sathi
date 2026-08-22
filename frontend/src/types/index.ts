@@ -145,6 +145,9 @@ export interface Alert {
   resolved_by: string | null;
   resolved_at: string | null;
   created_at: string;
+  triage_status?: string;
+  triage_transcript?: string | any[];
+  triage_recording_url?: string | null;
 }
 
 export interface AlertTimelineEntry {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 import "./globals.css";
 
 const inter = Inter({
@@ -27,7 +28,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="antialiased bg-bg text-fg font-sans">{children}</body>
+      <body className="antialiased bg-bg text-fg font-sans">
+        <LanguageProvider>
+          {children}
+        </LanguageProvider>
+      </body>
     </html>
   );
 }

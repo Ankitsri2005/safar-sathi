@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import { cn } from "@/utils/cn";
 import { Button } from "@/components/ui/Button";
+import { useLanguage, SUPPORTED_LOCALES, Locale } from "@/contexts/LanguageContext";
 import {
   Shield,
   Menu,
@@ -14,16 +15,8 @@ import {
   LayoutDashboard,
   User,
   ChevronDown,
+  Globe,
 } from "lucide-react";
-
-const publicLinks = [
-  { label: "About", href: "/about" },
-  { label: "Digital ID", href: "/digital-id" },
-  { label: "My Tracking", href: "/my-tracking" },
-  { label: "Safety", href: "/safety" },
-  { label: "Emergency", href: "/emergency" },
-  { label: "FAQ", href: "/faq" },
-];
 
 export default function Navbar() {
   const { user, logout, isAuthenticated } = useAuth();
@@ -31,6 +24,19 @@ export default function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [langOpen, setLangOpen] = useState(false);
+  const { t, locale, setLocale } = useLanguage();
+
+  const currentLocaleInfo = SUPPORTED_LOCALES.find((l) => l.code === locale) || SUPPORTED_LOCALES[0];
+
+  const localizedLinks = [
+    { label: t("nav_about"), href: "/about" },
+    { label: t("nav_digital_id"), href: "/digital-id" },
+    { label: t("nav_my_tracking"), href: "/my-tracking" },
+    { label: t("nav_safety"), href: "/safety" },
+    { label: t("nav_emergency"), href: "/emergency" },
+    { label: t("nav_faq"), href: "/faq" },
+  ];
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -70,7 +76,7 @@ export default function Navbar() {
 
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-1">
-            {publicLinks.map((link) => (
+            {localizedLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -87,6 +93,40 @@ export default function Navbar() {
 
             <div className="h-5 w-px bg-border mx-2" />
 
+            {/* Language Switcher */}
+            <div className="relative mr-2">
+              <button
+                onClick={() => setLangOpen(!langOpen)}
+                className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-border bg-surface-light/5 text-muted hover:text-fg hover:bg-surface-light/10 transition-all cursor-pointer"
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>{currentLocaleInfo.native}</span>
+                <ChevronDown className="w-3 h-3" />
+              </button>
+
+              {langOpen && (
+                <div className="absolute right-0 mt-1.5 w-36 rounded-xl border border-border bg-white shadow-lg py-1 z-50 animate-fade-in max-h-64 overflow-y-auto">
+                  {SUPPORTED_LOCALES.map((lang) => (
+                    <button
+                      key={lang.code}
+                      onClick={() => {
+                        setLocale(lang.code as Locale);
+                        setLangOpen(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-1.5 text-xs hover:bg-surface-light/10 transition-colors block font-medium cursor-pointer",
+                        locale === lang.code ? "text-primary bg-primary-50/50 font-bold" : "text-muted hover:text-fg"
+                      )}
+                    >
+                      {lang.native} <span className="text-[10px] text-muted ml-1">({lang.name})</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="h-5 w-px bg-border mx-1" />
+
             {isAuthenticated ? (
               <>
                 <Link
@@ -94,7 +134,7 @@ export default function Navbar() {
                   className="flex items-center gap-2 text-sm font-medium text-muted hover:text-fg transition-colors px-3 py-2 rounded-lg hover:bg-surface-light/10"
                 >
                   <LayoutDashboard className="w-4 h-4" />
-                  Dashboard
+                  {t("nav_dashboard")}
                 </Link>
                 <div className="h-5 w-px bg-border mx-1" />
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-light/5">
@@ -107,7 +147,7 @@ export default function Navbar() {
                   </div>
                 </div>
                 <Button variant="ghost" size="sm" onClick={handleLogout} icon={<LogOut className="w-3.5 h-3.5" />}>
-                  Logout
+                  {t("nav_logout")}
                 </Button>
               </>
             ) : (
@@ -116,10 +156,10 @@ export default function Navbar() {
                   href="/register"
                   className="text-sm font-medium text-muted hover:text-fg transition-colors px-3 py-2 rounded-lg hover:bg-surface-light/10"
                 >
-                  Register
+                  {t("nav_register")}
                 </Link>
                 <Button variant="primary" size="sm" onClick={() => router.push("/login")}>
-                  Authority Login
+                  {t("nav_login")}
                 </Button>
               </>
             )}
@@ -143,7 +183,7 @@ export default function Navbar() {
         )}
       >
         <div className="glass border-t border-border px-4 py-4 space-y-1">
-          {publicLinks.map((link) => (
+          {localizedLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -158,6 +198,32 @@ export default function Navbar() {
               {link.label}
             </Link>
           ))}
+
+          <div className="h-px bg-border my-2" />
+
+          {/* Mobile Language Switcher */}
+          <div className="px-3 py-2 space-y-1.5">
+            <p className="text-[10px] font-semibold text-muted uppercase tracking-wider">Language</p>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-40 overflow-y-auto">
+              {SUPPORTED_LOCALES.map((lang) => (
+                <button
+                  key={lang.code}
+                  onClick={() => {
+                    setLocale(lang.code as Locale);
+                    setMobileOpen(false);
+                  }}
+                  className={cn(
+                    "py-1.5 px-2 rounded text-xs font-semibold transition-all text-center truncate cursor-pointer",
+                    locale === lang.code
+                      ? "bg-primary text-white font-bold"
+                      : "bg-surface-light/15 text-muted hover:bg-surface-light/30"
+                  )}
+                >
+                  {lang.native}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="h-px bg-border my-2" />
 
@@ -178,14 +244,14 @@ export default function Navbar() {
                 className="flex items-center gap-2 text-sm font-medium text-muted hover:text-fg px-3 py-2.5 rounded-lg hover:bg-surface-light/10"
               >
                 <LayoutDashboard className="w-4 h-4" />
-                Dashboard
+                {t("nav_dashboard")}
               </Link>
               <button
                 onClick={() => { handleLogout(); setMobileOpen(false); }}
-                className="flex items-center gap-2 text-sm font-medium text-danger px-3 py-2.5 rounded-lg hover:bg-danger-50 w-full"
+                className="flex items-center gap-2 text-sm font-medium text-danger px-3 py-2.5 rounded-lg hover:bg-danger-50 w-full text-left"
               >
                 <LogOut className="w-4 h-4" />
-                Logout
+                {t("nav_logout")}
               </button>
             </>
           ) : (
@@ -195,14 +261,14 @@ export default function Navbar() {
                 onClick={() => setMobileOpen(false)}
                 className="block text-sm font-medium text-muted hover:text-fg px-3 py-2.5 rounded-lg hover:bg-surface-light/10"
               >
-                Register
+                {t("nav_register")}
               </Link>
               <Link
                 href="/login"
                 onClick={() => setMobileOpen(false)}
                 className="block text-sm font-medium text-white bg-primary px-3 py-2.5 rounded-lg text-center hover:bg-primary-dark"
               >
-                Authority Login
+                {t("nav_login")}
               </Link>
             </>
           )}

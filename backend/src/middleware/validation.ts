@@ -76,13 +76,19 @@ export function validateLocationPing(req: Request, res: Response, next: NextFunc
     return res.status(400).json({ error: "tourist_id is required" });
   }
 
-  if (typeof lat !== "number" || lat < -90 || lat > 90) {
-    return res.status(400).json({ error: "lat must be a number between -90 and 90" });
+  const numLat = Number(lat);
+  const numLng = Number(lng);
+
+  if (lat === undefined || lat === null || isNaN(numLat) || numLat < -90 || numLat > 90) {
+    return res.status(400).json({ error: "lat must be a valid number between -90 and 90" });
   }
 
-  if (typeof lng !== "number" || lng < -180 || lng > 180) {
-    return res.status(400).json({ error: "lng must be a number between -180 and 180" });
+  if (lng === undefined || lng === null || isNaN(numLng) || numLng < -180 || numLng > 180) {
+    return res.status(400).json({ error: "lng must be a valid number between -180 and 180" });
   }
+
+  req.body.lat = numLat;
+  req.body.lng = numLng;
 
   next();
 }

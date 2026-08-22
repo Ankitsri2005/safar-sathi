@@ -1,15 +1,25 @@
 # Smart Tourist Safety Monitoring & Incident Response System
 
-A comprehensive platform for monitoring tourist safety through blockchain-secured digital IDs, real-time tracking, geofencing, and instant emergency response.
+A comprehensive platform for monitoring tourist safety through blockchain-secured digital IDs, real-time tracking, AI digital twin risk scoring, multilingual voice triage, geofencing, and instant emergency response.
+
+## Key Features & Highlights
+
+- **Multilingual Support**: Real-time language switcher built into the Navbar supporting **English**, **Hindi (हिन्दी)**, **Bengali (বাংলা)**, and **Assamese (অসমীয়া)** with dynamic page localization.
+- **10-Second Automatic Voice SOS Recording**: One-tap emergency panic button with automatic 10-second ambient audio recording (Web Audio API fallback + MediaRecorder), live countdown ring, auto-stop at 10.0s, and inline audio playback player.
+- **AI "First Response" Voice Triage**: Automated emergency voice triage assistant ("Are you hurt? Is anyone with you?") that captures critical context before dispatching responders.
+- **Behavioral "Digital Twin" Risk Scoring**: Dynamic AI risk model scaling anomaly scores in real-time based on PostGIS spatial crowd density, weather alerts, time-of-day, and local incident history.
+- **PostGIS Spatial Analytics & Density Heatmaps**: Live database-driven analytics computed via PostGIS `ST_Contains` spatial joins for tourist density grids, alert hotspots, and zone visit frequencies.
+- **Real-Time Map & Device GPS Simulator**: Dynamic Leaflet maps with initial boundary auto-fitting, socket.io location updates, and built-in tourist GPS simulation panel.
+- **Blockchain Digital Tourist IDs**: Tamper-proof digital IDs backed by SHA-256 hash-chain ledger verification.
 
 ## Project Structure
 
 ```
 sih 2026/
-├── frontend/          Next.js + Tailwind CSS (App Router)
-├── backend/           Node.js + Express.js + PostgreSQL/PostGIS
+├── frontend/          Next.js 16 + Tailwind CSS (App Router, LanguageContext)
+├── backend/           Node.js + Express.js + PostgreSQL/PostGIS (Knex ORM)
 ├── blockchain/        Hash-chain blockchain module
-├── ai-service/        Python/Flask microservice (anomaly detection)
+├── ai-service/        Python/Flask microservice (Isolation Forest & Digital Twin)
 ├── docs/              Project documentation
 │   ├── architecture/
 │   ├── api/
@@ -22,17 +32,15 @@ sih 2026/
 
 | Layer              | Technology                                    |
 |--------------------|-----------------------------------------------|
-| Frontend           | Next.js 16, Tailwind CSS, TypeScript          |
-| Backend            | Node.js, Express.js, TypeScript               |
+| Frontend           | Next.js 16, Tailwind CSS, TypeScript, Context |
+| Backend            | Node.js, Express.js, TypeScript, Knex         |
 | Database           | PostgreSQL + PostGIS                          |
 | Blockchain         | Custom SHA-256 hash-chain (Node.js)           |
-| Maps               | Mapbox GL JS                                  |
-| Heatmaps           | Kepler.gl / deck.gl                           |
-| Auth               | JWT + bcrypt, role-based access               |
+| Maps               | Leaflet & Mapbox GL JS                        |
+| Real-Time          | Socket.io                                     |
+| Auth               | JWT + bcrypt, role-based access control       |
 | PDF Generation     | pdfkit (E-FIR generation)                     |
-| QR Code            | qrcode (npm)                                  |
-| Real-time          | Socket.io                                     |
-| AI/ML Service      | Python, Flask, scikit-learn (planned)         |
+| AI/ML Service      | Python, Flask, Isolation Forest AI            |
 
 ## Quick Start
 
@@ -44,18 +52,18 @@ sih 2026/
 ### Backend Setup
 ```bash
 cd backend
-cp .env.example .env    # Configure your database credentials
+cp .env.example .env    # Configure database credentials
 npm install
-npm run dev             # Starts on http://localhost:5000
+npm run dev             # Starts API on http://localhost:5000
 ```
 
 ### Database Setup
 ```bash
-# Ensure PostgreSQL is running, then create the database:
+# Ensure PostgreSQL is running, then create database:
 psql -U postgres -c "CREATE DATABASE smart_tourist_safety;"
 psql -U postgres -d smart_tourist_safety -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 
-# Run migrations:
+# Run migrations (includes 009_add_triage_columns):
 cd backend
 npm run migrate
 
@@ -77,38 +85,20 @@ npm run dev             # Starts on http://localhost:3000
 | officer1  | police123   | police       |
 | tourism1  | tourism123  | tourism_dept |
 
-## Environment Variables
+## API Endpoints Summary
 
-See `backend/.env.example` for all required variables. Key ones:
-
-| Variable              | Description                    |
-|-----------------------|--------------------------------|
-| DB_HOST               | PostgreSQL host                |
-| DB_PORT               | PostgreSQL port                |
-| DB_NAME               | Database name                  |
-| JWT_SECRET            | JWT signing secret             |
-| BLOCKCHAIN_SALT       | Hash-chain salt value          |
-| MAPBOX_ACCESS_TOKEN   | Mapbox API token               |
-
-## API Endpoints
-
-| Method | Endpoint                          | Auth | Description              |
-|--------|-----------------------------------|------|--------------------------|
-| POST   | /api/register                     | No   | Tourist registration     |
-| GET    | /api/verify-id/:touristId/:blockId| No   | QR/ID verification       |
-| POST   | /api/auth/login                   | No   | Authority login          |
-| GET    | /api/auth/me                      | Yes  | Current user profile     |
-| GET    | /api/dashboard/overview           | Yes  | Dashboard stats          |
-| GET    | /api/dashboard/active-tourists    | Yes  | Tourist locations        |
-| GET    | /api/dashboard/analytics          | Yes  | Alert analytics          |
-| GET    | /api/alerts                       | Yes  | List alerts              |
-| POST   | /api/alerts                       | Yes  | Create alert             |
-| PATCH  | /api/alerts/:id                   | Yes  | Update alert status      |
-| GET    | /api/zones                        | Yes  | List risk zones          |
-| POST   | /api/zones                        | Yes  | Create risk zone         |
-| GET    | /api/digital-ids                  | Yes  | List digital IDs         |
-| GET    | /api/efirs                        | Yes  | List E-FIRs              |
-| POST   | /api/efirs/generate/:alertId      | Yes  | Generate E-FIR PDF       |
+| Method | Endpoint                          | Auth | Description                                 |
+|--------|-----------------------------------|------|---------------------------------------------|
+| POST   | /api/register                     | No   | Tourist registration                        |
+| GET    | /api/verify-id/:touristId/:blockId| No   | QR/ID verification                          |
+| POST   | /api/auth/login                   | No   | Authority login                             |
+| GET    | /api/dashboard/overview           | Yes  | Dashboard statistics                        |
+| GET    | /api/dashboard/active-tourists    | Yes  | Tourist locations                           |
+| GET    | /api/alerts                       | Yes  | List alerts                                 |
+| PATCH  | /api/alerts/:id/triage            | Yes  | Update AI First Response voice triage       |
+| POST   | /api/location-ping                | Yes  | Post live GPS ping & trigger AI analysis    |
+| POST   | /api/ai/analyze/:touristId        | Yes  | Run Digital Twin Isolation Forest AI        |
+| POST   | /api/efirs/generate/:alertId      | Yes  | Generate E-FIR PDF                          |
 
 ## License
 

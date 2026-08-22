@@ -114,6 +114,9 @@ export interface Alert {
   resolved_by: string | null;
   resolved_at: Date | null;
   created_at: Date;
+  triage_status?: string;
+  triage_transcript?: any;
+  triage_recording_url?: string | null;
 }
 
 export interface Zone {

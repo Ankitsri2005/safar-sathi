@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-primary: #1e40af;
-  --color-primary-light: #3b82f6;
-  --color-primary-dark: #1e3a8a;
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
+  --color-primary: #0f766e;
+  --color-primary-light: #14b8a6;
+  --color-primary-dark: #134e4a;
+  --color-primary-50: #f0fdfa;
+  --color-primary-100: #ccfbf1;
+  --color-primary-200: #99f6e4;
 
   --color-accent: #f97316;
   --color-accent-light: #fb923c;
@@ -60,7 +60,7 @@
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.12);
-  --shadow-glow: 0 0 20px rgba(30, 64, 175, 0.15);
+  --shadow-glow: 0 0 20px rgba(20, 184, 166, 0.2);
   --shadow-glow-accent: 0 0 20px rgba(249, 115, 22, 0.15);
 
   --animate-fade-in: fade-in 0.5s ease-out both;
@@ -88,6 +88,8 @@
   --animate-shake: shake 0.5s ease-in-out;
   --animate-glow-pulse: glow-pulse 2s ease-in-out infinite;
   --animate-progress-fill: progress-fill 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-gradient-x: gradient-shift 6s ease infinite;
+  --animate-spin-slow: spin 14s linear infinite;
 }
 
 @keyframes fade-in {
@@ -206,8 +208,8 @@
 }
 
 @keyframes progress-glow {
-  0%, 100% { box-shadow: 0 0 8px rgba(30, 64, 175, 0.3); }
-  50% { box-shadow: 0 0 20px rgba(30, 64, 175, 0.6); }
+  0%, 100% { box-shadow: 0 0 8px rgba(20, 184, 166, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(20, 184, 166, 0.6); }
 }
 
 @keyframes confetti-fall {
@@ -285,7 +287,7 @@ body {
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #1e40af, #f97316);
+  background: linear-gradient(135deg, #0f766e, #f97316);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
