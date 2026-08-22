@@ -1,87 +1,45 @@
-# 🛡️ Safar — Smart Tourist Safety Monitoring & Incident Response System
+## 🛡️ Safar Sathi: Project Overview
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-safar--frontend.onrender.com-00C853?style=for-the-badge&logo=render&logoColor=white)](https://safar-frontend.onrender.com)
-[![Next.js](https://img.shields.io/badge/Next.js_16-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-[![Express.js](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![PostGIS](https://img.shields.io/badge/PostGIS-336791?style=for-the-badge&logo=postgis&logoColor=white)](https://postgis.net/)
-[![Python](https://img.shields.io/badge/Python_3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![Socket.io](https://img.shields.io/badge/Socket.io-010101?style=for-the-badge&logo=socketdotio&logoColor=white)](https://socket.io/)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Safar_Sathi-00C853?style=for-the-badge&logo=render&logoColor=white)](https://safar-frontend.onrender.com)
+[![Tech Stack](https://img.shields.io/badge/Stack-Next.js_|_Node_|_PostGIS_|_Python-black?style=for-the-badge)](#)
 
-> 🌐 **Live Web Application:** [https://safar-frontend.onrender.com](https://safar-frontend.onrender.com)
+**Safar Sathi** is an end-to-end smart tourist safety monitoring platform. It proactively identifies threats using AI behavioral analysis, secures identities via blockchain, and tracks users in real-time through PostGIS geo-fencing and offline IoT gateways. Access the live application here: [Safar Sathi](https://safar-frontend.onrender.com).
 
-**Safar** is an end-to-end, multi-layered smart tourist safety monitoring and incident response platform. By combining **Blockchain-backed Digital IDs**, **PostGIS Spatial Geo-Fencing**, **AI Behavioral Anomaly Detection**, **IoT Offline Gateway Connectivity**, and **Automated Emergency Response Services**, Safar proactively identifies threats and enables swift intervention before critical situations escalate.
+## 🚀 Core Features & Architecture
 
----
+| Component | Description & Technologies Used |
+| :--- | :--- |
+| **Multilingual UI** | Real-time context switcher for English, Hindi, Bengali, and Assamese using Next.js 16. |
+| **Voice SOS & Triage** | 10-second ambient audio recording and automated AI voice triage for rapid emergency context. |
+| **Digital Twin AI** | Python/Flask microservice running Isolation Forest to detect route deviations and inactivity. |
+| **Spatial Analytics** | PostGIS `ST_Contains` queries for dynamic geo-fencing (Restricted/High-Risk zones) and heatmaps. |
+| **Blockchain IDs** | SHA-256 hash-chain ledger for tamper-proof registration, keeping sensitive KYC data off-chain. |
+| **Automated E-FIR** | Instant PDF report generation (`PDFKit`) combining verified identities and last-known GPS data. |
 
-## 📋 Table of Contents
+## 🗺️ 10-Phase Implementation Roadmap
 
-- [Key Features](#-key-features)
-- [System Architecture](#-system-architecture)
-- [Tech Stack](#-tech-stack)
-- [Project Directory Structure](#-project-directory-structure)
-- [Getting Started](#-getting-started)
-  - [Prerequisites](#prerequisites)
-  - [1. Backend Setup](#1-backend-setup)
-  - [2. Database & PostGIS Setup](#2-database--postgis-setup)
-  - [3. Frontend Setup](#3-frontend-setup)
-  - [4. AI Microservice Setup](#4-ai-microservice-setup)
-- [Environment Variables](#-environment-variables)
-- [Default Login Credentials](#-default-login-credentials)
-- [API Documentation](#-api-documentation)
-- [Data Privacy & Security](#-data-privacy--security)
-- [License](#-license)
+| Phase | Objective | Key Deliverables |
+| :--- | :--- | :--- |
+| **1. Architecture** | System design & API mapping | Monorepo setup, OpenAPI contracts, UI wireframes. |
+| **2. UI/UX Base** | Multilingual presentation layer | Next.js Tourist App and Admin Dashboard with Tailwind. |
+| **3. Real-Time Core** | Node.js APIs & Socket Gateway | Express.js REST routes and Socket.IO namespaces. |
+| **4. Spatial Engine** | Database & Geo-fencing | PostgreSQL + PostGIS integration for boundary alerts. |
+| **5. Blockchain ID** | Tamper-proof verification | Node.js hash-chain ledger and AES-256 KYC encryption. |
+| **6. AI Risk Model** | Behavioral anomaly detection | Python Flask service with Scikit-learn (Isolation Forest). |
+| **7. IoT Gateway** | Offline wearable connectivity | ESP32/LoRaWAN tracking in cellular dead zones. |
+| **8. Command Panel** | Centralized police dashboard | Mapbox GL JS live dispatch and heatmap visualization. |
+| **9. SOS Pipeline** | Accessible emergency response | Web Audio API SOS recording and automated E-FIR generation. |
+| **10. Deployment** | Stress testing & cloud hosting | E2E integration, Locust load testing, Render deployment. |
 
----
+## 🛠️ Quick Start & API Integration
 
-## 🚀 Key Features
+**Backend & Database Setup:** Clone the repository, configure your `.env` (Database credentials, JWT secret), and initialize the PostGIS database. Run `npm install`, followed by `npm run migrate` and `npm run seed`. Start the server with `npm run dev` (Port 5000). 
 
-### 1. 🌐 Multilingual Accessibility & Localization
-- Built-in dynamic language context switcher supporting **English**, **Hindi (हिन्दी)**, **Bengali (বাংলা)**, and **Assamese (অসমীয়া)**.
-- Tailored UI localization across the Tourist Mobile-Web App, Police Command Panel, and Tourism Department Dashboard.
+**Frontend & AI Setup:** Install Next.js dependencies and run `npm run dev` (Port 3000). For the AI engine, create a Python virtual environment, install `requirements.txt`, and start the Flask app (Port 5001).
 
-### 2. 🎙️ 10-Second Automatic Voice SOS & AI Triage
-- One-tap emergency panic trigger with automatic **10.0-second ambient audio recording** (MediaRecorder with Web Audio API fallback).
-- Real-time countdown ring, auto-stop recording mechanism, and inline audio playback for dispatchers.
-- **AI "First Response" Voice Assistant**: Interactive automated triage asking critical incident questions (*"Are you injured? Is anyone with you?"*) to categorize urgency before responder arrival.
-
-### 3. 🧠 Behavioral "Digital Twin" Risk Scoring
-- Python/Flask microservice running an **Isolation Forest** unsupervised ML model to detect route deviations, prolonged inactivity, and sudden telemetry drop-offs.
-- Contextual risk engine dynamically scaling scores based on live PostGIS crowd density, time-of-day, local weather alerts, and historical incident heatmaps.
-
-### 4. 🗺️ PostGIS Spatial Analytics & Dynamic Geo-Fencing
-- High-performance spatial indexing (`GIST`) and `ST_Contains` spatial joins to evaluate tourist locations against active boundary polygons.
-- Admin-configurable zones: **Restricted**, **High-Risk**, and **IoT-Only** zones.
-- Live heatmaps displaying tourist density grids and active distress hotspots.
-
-### 5. 🔗 Blockchain-Backed Digital Tourist IDs
-- Tamper-proof, time-bound Digital Tourist IDs generated upon registration using a **SHA-256 Hash-Chain Ledger**.
-- Off-chain storage for sensitive KYC records (encrypted with AES-256) paired with on-chain cryptographic hashes.
-- Fast authority verification via instant QR Code scanning.
-
-### 6. 📄 Automated e-FIR & Rapid Dispatch Pipeline
-- Automatic PDF pre-filling and generation using `PDFKit` upon distress signal confirmation.
-- Includes verified KYC details, emergency contacts, cryptographic hash signatures, and last known GPS coordinates.
-
-### 7. 📡 Offline IoT & LoRaWAN Gateway Integration
-- Hardware wearable integration (ESP32 / LoRaWAN) for tracking in signal-dead zones (e.g., deep forests, high altitudes).
-- Direct panic button hardware override that bypasses ML queue processing for immediate dispatcher alert creation.
-
----
-
-## 🏗️ System Architecture
-
-```text
-                                  +---------------------------------------+
-                                  |         PRESENTATION LAYER            |
-                                  |   Next.js 16 + Tailwind CSS + i18n    |
-                                  |  (Tourist Web / Police / Admin UI)   |
-                                  +-------------------+-------------------+
-                                                      |
-                                          REST APIs / Socket.IO
-                                                      |
-                                                      v
-                                  +-------------------+-------------------+
-                                  |    APPLICATION SERVICE LAYER (Node)   |
-                                  |
+| Method | Key Endpoint | Description (Requires JWT for protected routes) |
+| :--- | :--- | :--- |
+| `POST` | `/api/register` | Registers tourist and issues Blockchain Digital ID. |
+| `GET` | `/api/verify-id/:id` | Verifies QR code authenticity against the hash-chain. |
+| `POST` | `/api/location` | Transmits live GPS ping and triggers PostGIS check. |
+| `POST` | `/api/efirs` | Compiles an automated E-FIR PDF upon distress signal. |
