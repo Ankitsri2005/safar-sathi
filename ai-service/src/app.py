@@ -742,4 +742,5 @@ if __name__ == "__main__":
     print("Training Isolation Forest model...")
     train_model()
     print(f"Model trained. Version: {MODEL_VERSION}")
-    app.run(debug=True, port=5001)
+    port = int(os.getenv("PORT", 5001))
+    app.run(host="0.0.0.0", port=port)

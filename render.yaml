@@ -1,0 +1,107 @@
+databases:
+  - name: safar-sathi-db
+    databaseName: smart_tourist_safety
+    user: safar_user
+    plan: free
+
+services:
+  # 1. AI/ML Microservice (Python)
+  - type: web
+    name: safar-ai-service
+    runtime: python
+    plan: free
+    rootDir: ai-service
+    buildCommand: pip install -r requirements.txt
+    startCommand: python src/app.py
+    envVars:
+      - key: PORT
+        value: 5001
+      - key: DB_HOST
+        fromDatabase:
+          name: safar-sathi-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: safar-sathi-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: safar-sathi-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: safar-sathi-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: safar-sathi-db
+          property: password
+
+  # 2. Backend API & WebSocket (Node.js)
+  - type: web
+    name: safar-backend-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm run migrate && npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: DB_HOST
+        fromDatabase:
+          name: safar-sathi-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: safar-sathi-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: safar-sathi-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: safar-sathi-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: safar-sathi-db
+          property: password
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 24h
+      - key: BLOCKCHAIN_SALT
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: AI_SERVICE_URL
+        fromService:
+          type: web
+          name: safar-ai-service
+          property: host
+      - key: CORS_ORIGIN
+        value: "*"
+
+  # 3. Next.js Frontend
+  - type: web
+    name: safar-frontend
+    runtime: node
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: safar-backend-api
+          property: host
+      - key: NEXT_PUBLIC_SOCKET_URL
+        fromService:
+          type: web
+          name: safar-backend-api
+          property: host
