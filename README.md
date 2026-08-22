@@ -1,45 +1,48 @@
-## 🛡️ Safar Sathi: Project Overview
+# 🛡️ Safar Sathi — Smart Tourist Safety Monitoring & Incident Response System
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Safar_Sathi-00C853?style=for-the-badge&logo=render&logoColor=white)](https://safar-frontend.onrender.com)
-[![Tech Stack](https://img.shields.io/badge/Stack-Next.js_|_Node_|_PostGIS_|_Python-black?style=for-the-badge)](#)
+[![Next.js](https://img.shields.io/badge/Next.js_16-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![PostGIS](https://img.shields.io/badge/PostGIS-336791?style=for-the-badge&logo=postgis&logoColor=white)](https://postgis.net/)
+[![Python](https://img.shields.io/badge/Python_3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 
-**Safar Sathi** is an end-to-end smart tourist safety monitoring platform. It proactively identifies threats using AI behavioral analysis, secures identities via blockchain, and tracks users in real-time through PostGIS geo-fencing and offline IoT gateways. Access the live application here: [Safar Sathi](https://safar-frontend.onrender.com).
+> 🌐 **Live Web Application:** [Safar Sathi](https://safar-frontend.onrender.com)
 
-## 🚀 Core Features & Architecture
+**Safar Sathi** is an end-to-end, multi-layered smart tourist safety monitoring and incident response platform. It proactively identifies threats and enables swift intervention by combining blockchain-secured identities, spatial analytics, AI-driven behavioral analysis, and automated emergency dispatch.
 
-| Component | Description & Technologies Used |
+---
+
+## 🚀 Key Features
+
+*   **Multilingual Support:** Dynamic localization across the UI (English, Hindi, Bengali, Assamese) for accessibility.
+*   **10-Second Voice SOS & AI Triage:** One-tap panic button records 10 seconds of audio. An automated AI voice assistant immediately asks critical triage questions (e.g., *"Are you injured?"*) to categorize urgency.
+*   **Behavioral "Digital Twin" AI:** Python/Flask microservice uses an **Isolation Forest** model to detect route deviations and anomalies, adjusting risk scores dynamically based on crowd density and weather.
+*   **PostGIS Spatial Analytics:** Live geo-fencing via `ST_Contains` spatial queries to monitor tourist locations against High-Risk or Restricted zones, paired with real-time density heatmaps.
+*   **Blockchain Digital Tourist IDs:** Secure, tamper-proof identification generation using a SHA-256 hash-chain ledger, keeping sensitive KYC data strictly off-chain (AES-256 encrypted).
+*   **Offline IoT Integration:** Wearable hardware (ESP32/LoRaWAN) tracks users in cellular dead zones and triggers immediate SOS alerts bypassing the standard queue.
+*   **Automated E-FIR Pipeline:** Instant generation of official PDF incident reports (`PDFKit`) containing verified KYC, cryptographic hashes, and GPS coordinates.
+
+---
+
+## 🛠️ Tech Stack & Architecture
+
+| Layer | Technologies |
 | :--- | :--- |
-| **Multilingual UI** | Real-time context switcher for English, Hindi, Bengali, and Assamese using Next.js 16. |
-| **Voice SOS & Triage** | 10-second ambient audio recording and automated AI voice triage for rapid emergency context. |
-| **Digital Twin AI** | Python/Flask microservice running Isolation Forest to detect route deviations and inactivity. |
-| **Spatial Analytics** | PostGIS `ST_Contains` queries for dynamic geo-fencing (Restricted/High-Risk zones) and heatmaps. |
-| **Blockchain IDs** | SHA-256 hash-chain ledger for tamper-proof registration, keeping sensitive KYC data off-chain. |
-| **Automated E-FIR** | Instant PDF report generation (`PDFKit`) combining verified identities and last-known GPS data. |
+| **Frontend (Presentation)** | Next.js 16 (App Router), Tailwind CSS, Context API, Leaflet/Mapbox |
+| **Backend (Application)** | Node.js, Express.js, TypeScript, Socket.io, JWT, PDFKit |
+| **Database (Data)** | PostgreSQL 14+, PostGIS, Knex ORM |
+| **AI/ML Service** | Python 3.10, Flask, Scikit-Learn (Isolation Forest) |
+| **Blockchain** | Custom SHA-256 Hash-Chain Module (Node.js) |
 
-## 🗺️ 10-Phase Implementation Roadmap
+---
 
-| Phase | Objective | Key Deliverables |
-| :--- | :--- | :--- |
-| **1. Architecture** | System design & API mapping | Monorepo setup, OpenAPI contracts, UI wireframes. |
-| **2. UI/UX Base** | Multilingual presentation layer | Next.js Tourist App and Admin Dashboard with Tailwind. |
-| **3. Real-Time Core** | Node.js APIs & Socket Gateway | Express.js REST routes and Socket.IO namespaces. |
-| **4. Spatial Engine** | Database & Geo-fencing | PostgreSQL + PostGIS integration for boundary alerts. |
-| **5. Blockchain ID** | Tamper-proof verification | Node.js hash-chain ledger and AES-256 KYC encryption. |
-| **6. AI Risk Model** | Behavioral anomaly detection | Python Flask service with Scikit-learn (Isolation Forest). |
-| **7. IoT Gateway** | Offline wearable connectivity | ESP32/LoRaWAN tracking in cellular dead zones. |
-| **8. Command Panel** | Centralized police dashboard | Mapbox GL JS live dispatch and heatmap visualization. |
-| **9. SOS Pipeline** | Accessible emergency response | Web Audio API SOS recording and automated E-FIR generation. |
-| **10. Deployment** | Stress testing & cloud hosting | E2E integration, Locust load testing, Render deployment. |
+## 📁 Project Structure
 
-## 🛠️ Quick Start & API Integration
-
-**Backend & Database Setup:** Clone the repository, configure your `.env` (Database credentials, JWT secret), and initialize the PostGIS database. Run `npm install`, followed by `npm run migrate` and `npm run seed`. Start the server with `npm run dev` (Port 5000). 
-
-**Frontend & AI Setup:** Install Next.js dependencies and run `npm run dev` (Port 3000). For the AI engine, create a Python virtual environment, install `requirements.txt`, and start the Flask app (Port 5001).
-
-| Method | Key Endpoint | Description (Requires JWT for protected routes) |
-| :--- | :--- | :--- |
-| `POST` | `/api/register` | Registers tourist and issues Blockchain Digital ID. |
-| `GET` | `/api/verify-id/:id` | Verifies QR code authenticity against the hash-chain. |
-| `POST` | `/api/location` | Transmits live GPS ping and triggers PostGIS check. |
-| `POST` | `/api/efirs` | Compiles an automated E-FIR PDF upon distress signal. |
+```text
+safar-sathi/
+├── frontend/         # Next.js UI, Map components, i18n context
+├── backend/          # Express.js REST APIs, Socket gateways, PDF gen
+├── blockchain/       # Block creation & SHA-256 ledger validation
+├── ai-service/       # Python/Flask ML models (Risk scoring)
+└── docs/             # Architecture diagrams and system specs
