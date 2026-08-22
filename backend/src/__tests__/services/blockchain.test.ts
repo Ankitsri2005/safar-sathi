@@ -6,15 +6,35 @@ import { config } from "../../config";
 jest.mock("../../config/database", () => {
   const blocks: any[] = [];
   const handler: any = (table?: string) => {
+    let filterCriteria: Record<string, any> = {};
     const chain: Record<string, any> = {};
     const methods = [
-      "where", "whereNot", "whereRaw", "select", "insert", "first",
+      "whereNot", "whereRaw", "select", "insert",
       "orderBy", "clone", "returning",
     ];
     for (const m of methods) {
       chain[m] = jest.fn(() => chain);
     }
-    chain.first = jest.fn(() => blocks[blocks.length - 1] || null);
+    chain.where = jest.fn((crit: any) => {
+      if (typeof crit === "object") Object.assign(filterCriteria, crit);
+      return chain;
+    });
+    chain.orWhere = jest.fn((crit: any) => {
+      if (typeof crit === "object") {
+        // also accept orWhere criteria
+        Object.assign(filterCriteria, crit);
+      }
+      return chain;
+    });
+    chain.first = jest.fn(() => {
+      if (Object.keys(filterCriteria).length > 0) {
+        const found = blocks.find((b) =>
+          Object.entries(filterCriteria).some(([k, v]) => b[k] === v)
+        );
+        return found || null;
+      }
+      return blocks[blocks.length - 1] || null;
+    });
     chain.then = jest.fn((resolve: any) => resolve(blocks));
     chain.insert = jest.fn((data: any) => {
       blocks.push(data);

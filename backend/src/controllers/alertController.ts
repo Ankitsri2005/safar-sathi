@@ -34,11 +34,11 @@ export async function listAlerts(req: Request, res: Response) {
 
 export async function getAlert(req: Request, res: Response) {
   try {
-    const alert = await alertService.getAlertById(req.params.id);
+    const alert = await alertService.getAlertById(req.params.id as string);
     if (!alert) return res.status(404).json({ error: "Alert not found" });
     await logFromRequest(req, "alert_viewing", {
       resource_type: "alert",
-      resource_id: req.params.id,
+      resource_id: req.params.id as string,
     });
     res.json(alert);
   } catch {
@@ -50,7 +50,7 @@ export async function updateAlert(req: Request, res: Response) {
   try {
     const { status, notes } = req.body;
     const alert = await alertService.updateAlertStatus(
-      req.params.id,
+      req.params.id as string,
       status,
       req.user?.userId,
       notes
@@ -59,7 +59,7 @@ export async function updateAlert(req: Request, res: Response) {
     if (status === AlertStatus.RESOLVED || status === AlertStatus.FALSE_POSITIVE) {
       await logFromRequest(req, "alert_resolution", {
         resource_type: "alert",
-        resource_id: req.params.id,
+        resource_id: req.params.id as string,
         details: { status, notes },
       });
     }
@@ -71,7 +71,7 @@ export async function updateAlert(req: Request, res: Response) {
 
 export async function getAlertTimeline(req: Request, res: Response) {
   try {
-    const timeline = await alertService.getAlertTimeline(req.params.id);
+    const timeline = await alertService.getAlertTimeline(req.params.id as string);
     res.json(timeline);
   } catch {
     res.status(500).json({ error: "Failed to get timeline" });
@@ -93,5 +93,33 @@ export async function getRecentAlerts(_req: Request, res: Response) {
     res.json(alerts);
   } catch {
     res.status(500).json({ error: "Failed to get recent alerts" });
+  }
+}
+
+export async function updateTriage(req: Request, res: Response) {
+  try {
+    const { triage_status, triage_transcript, triage_recording_url } = req.body;
+    const alert = await alertService.updateAlertTriage(
+      req.params.id as string,
+      triage_status,
+      triage_transcript,
+      triage_recording_url
+    );
+    if (!alert) return res.status(404).json({ error: "Alert not found" });
+    
+    // Broadcast socket notification to dashboards
+    try {
+      const { io } = await import("../server");
+      io.emit("alert:triage_update", {
+        alert_id: req.params.id,
+        triage_status,
+        triage_transcript
+      });
+    } catch {}
+
+    res.json(alert);
+  } catch (err: any) {
+    console.error("Triage update error:", err);
+    res.status(500).json({ error: "Failed to update triage" });
   }
 }

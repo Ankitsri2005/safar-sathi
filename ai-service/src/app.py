@@ -367,6 +367,136 @@ def get_recommended_action(risk_level):
 
 # ── API Endpoints ──────────────────────────────────────────────
 
+def calculate_digital_twin_modifiers(tourist_id):
+    """Calculate dynamic modifiers based on time, weather, crowd density, and historical alerts."""
+    time_factor = 1.0
+    time_desc = "Normal Hours"
+    weather_factor = 1.0
+    weather_desc = "Clear Weather"
+    crowd_factor = 1.0
+    crowd_desc = "Normal Density"
+    incident_factor = 1.0
+    incident_desc = "Low Incident Area"
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # Get latest ping
+        cur.execute("""
+            SELECT lat, lng, timestamp FROM location_pings
+            WHERE tourist_id = %s
+            ORDER BY timestamp DESC LIMIT 1
+        """, (tourist_id,))
+        latest_ping = cur.fetchone()
+        
+        if latest_ping:
+            lat = float(latest_ping["lat"])
+            lng = float(latest_ping["lng"])
+            dt = latest_ping["timestamp"]
+            
+            # Handle string vs datetime object
+            if isinstance(dt, str):
+                try:
+                    dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+                except:
+                    dt = datetime.utcnow()
+            
+            # 1. Time of Day factor
+            hour = dt.hour
+            if hour >= 22 or hour < 5:
+                time_factor = 1.35
+                time_desc = "Late Night (Extreme Risk Modifier)"
+            elif hour >= 20 or hour < 6:
+                time_factor = 1.25
+                time_desc = "Night Hours (High Risk Modifier)"
+            elif hour >= 18:
+                time_factor = 1.12
+                time_desc = "Evening Hours (Moderate Risk Modifier)"
+                
+            # 2. Weather factor
+            now = datetime.utcnow()
+            is_monsoon = 6 <= now.month <= 9
+            seed_val = int(lat * 100) + int(lng * 100) + now.hour
+            np.random.seed(seed_val)
+            rain_chance = np.random.rand()
+            
+            if is_monsoon:
+                if rain_chance > 0.45:
+                    weather_factor = 1.45
+                    weather_desc = "Heavy Monsoon Rain (Severe Landslide Threat)"
+                else:
+                    weather_factor = 1.15
+                    weather_desc = "Monsoon Season Light Rainfall"
+            else:
+                if rain_chance > 0.88:
+                    weather_factor = 1.3
+                    weather_desc = "Sudden High-Altitude Thunderstorm / Hail"
+                elif rain_chance > 0.72:
+                    weather_factor = 1.15
+                    weather_desc = "Dense Fog / Low Visibility Warning"
+            
+            # 3. Crowd density (spatial search within 500m)
+            thirty_mins_ago = (datetime.utcnow() - timedelta(minutes=30)).isoformat()
+            cur.execute("""
+                SELECT COUNT(DISTINCT tourist_id) as count FROM location_pings
+                WHERE timestamp >= %s
+                AND tourist_id != %s
+                AND ST_DWithin(
+                    ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography,
+                    ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
+                    500
+                )
+            """, (thirty_mins_ago, tourist_id, lng, lat))
+            crowd_row = cur.fetchone()
+            crowd_count = crowd_row["count"] if crowd_row else 0
+            
+            if crowd_count == 0:
+                crowd_factor = 1.25
+                crowd_desc = "Isolated Tourist Twin (No nearby help)"
+            elif crowd_count > 25:
+                crowd_factor = 1.15
+                crowd_desc = "High Density Area (Overcrowding / Pickpocket Risk)"
+                
+            # 4. Historical Incident search (within 1000m in last 30 days)
+            thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
+            cur.execute("""
+                SELECT COUNT(*) as count FROM alerts
+                WHERE created_at >= %s
+                AND ST_DWithin(
+                    ST_SetSRID(ST_MakePoint(location_lng, location_lat), 4326)::geography,
+                    ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
+                    1000
+                )
+            """, (thirty_days_ago, lng, lat))
+            incident_row = cur.fetchone()
+            incident_count = incident_row["count"] if incident_row else 0
+            
+            if incident_count > 5:
+                incident_factor = 1.35
+                incident_desc = "Critical Incident Zone (5+ recent alerts)"
+            elif incident_count > 0:
+                incident_factor = 1.18
+                incident_desc = f"Active Incident Zone ({incident_count} recent alerts)"
+                
+        conn.close()
+    except Exception as db_err:
+        print(f"Error fetching digital twin modifiers: {db_err}")
+
+    net_multiplier = time_factor * weather_factor * crowd_factor * incident_factor
+    return {
+        "time_factor": time_factor,
+        "time_description": time_desc,
+        "weather_factor": weather_factor,
+        "weather_description": weather_desc,
+        "crowd_factor": crowd_factor,
+        "crowd_description": crowd_desc,
+        "incident_factor": incident_factor,
+        "incident_description": incident_desc,
+        "net_multiplier": net_multiplier
+    }
+
+
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok", "service": "ai-service", "model_version": MODEL_VERSION})
@@ -374,7 +504,7 @@ def health():
 
 @app.route("/api/analyze/movement", methods=["POST"])
 def analyze_movement():
-    """Analyze a tourist's movement for anomalies using Isolation Forest."""
+    """Analyze a tourist's movement for anomalies using Isolation Forest with dynamic Digital Twin scoring."""
     data = request.get_json()
     tourist_id = data.get("tourist_id")
     if not tourist_id:
@@ -384,6 +514,9 @@ def analyze_movement():
     if not features:
         return jsonify({"error": "Insufficient data (need 3+ pings in last 24h)"}), 400
 
+    # Calculate dynamic Digital Twin modifiers
+    twin = calculate_digital_twin_modifiers(tourist_id)
+
     global trained_model
     if trained_model is None:
         train_model()
@@ -392,6 +525,10 @@ def analyze_movement():
     scaled = scaler.transform(vector)
     score = float(-trained_model.score_samples(scaled)[0])  # higher = more anomalous
     score = max(0, min(1, score))  # clamp to [0, 1]
+
+    # Apply Behavioral "Digital Twin" modifiers
+    score = score * twin["net_multiplier"]
+    score = max(0, min(1, score))  # clamp to [0, 1] again
 
     # Risk level
     if score >= 0.9:
@@ -421,7 +558,21 @@ def analyze_movement():
     contributions.sort(key=lambda c: c["contribution_score"], reverse=True)
 
     reasons = get_reasons(features, contributions, score)
+    
+    # Append Behavioral Twin reasons if active
+    if twin["time_factor"] > 1.0:
+        reasons.append(f"Elevated risk: {twin['time_description']} (Multiplier: x{twin['time_factor']:.2f})")
+    if twin["weather_factor"] > 1.0:
+        reasons.append(f"Weather alert: {twin['weather_description']} (Multiplier: x{twin['weather_factor']:.2f})")
+    if twin["crowd_factor"] > 1.0:
+        reasons.append(f"Environmental warning: {twin['crowd_description']} (Multiplier: x{twin['crowd_factor']:.2f})")
+    if twin["incident_factor"] > 1.0:
+        reasons.append(f"Security alert: {twin['incident_description']} (Multiplier: x{twin['incident_factor']:.2f})")
+
     recommended_action = get_recommended_action(risk_level)
+
+    # Attach to features for database persistence
+    features["digital_twin_metrics"] = twin
 
     result = {
         "tourist_id": tourist_id,
@@ -433,6 +584,7 @@ def analyze_movement():
         "related_points": features["recent_pings"],
         "top_contributions": [c for c in contributions if c["is_anomalous"]][:5],
         "created_at": datetime.utcnow().isoformat(),
+        "digital_twin": twin
     }
 
     # Store in database
@@ -460,7 +612,7 @@ def analyze_movement():
 
 @app.route("/api/analyze/risk-score", methods=["POST"])
 def risk_score():
-    """Calculate risk score for a tourist."""
+    """Calculate risk score for a tourist with dynamic Digital Twin scoring."""
     data = request.get_json()
     tourist_id = data.get("tourist_id")
     if not tourist_id:
@@ -469,6 +621,9 @@ def risk_score():
     features = extract_features(tourist_id)
     if not features:
         return jsonify({"error": "Insufficient data"}), 400
+
+    # Calculate dynamic Digital Twin modifiers
+    twin = calculate_digital_twin_modifiers(tourist_id)
 
     global trained_model
     if trained_model is None:
@@ -479,9 +634,14 @@ def risk_score():
     score = float(-trained_model.score_samples(scaled)[0])
     score = max(0, min(1, score))
 
+    # Apply Behavioral "Digital Twin" modifiers
+    score = score * twin["net_multiplier"]
+    score = max(0, min(1, score))
+
     return jsonify({
         "tourist_id": tourist_id,
         "risk_score": round(score, 4),
+        "digital_twin": twin,
         "features": {k: v for k, v in features.items() if k not in ("recent_pings", "tourist_id")},
     })
 

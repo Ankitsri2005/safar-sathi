@@ -283,3 +283,24 @@ export async function getAlertStats(): Promise<{
 
   return stats;
 }
+
+export async function updateAlertTriage(
+  id: string,
+  triageStatus: string,
+  triageTranscript: any,
+  triageRecordingUrl?: string
+): Promise<Alert | null> {
+  const [alert] = await db(TABLE)
+    .where({ id })
+    .update({
+      triage_status: triageStatus,
+      triage_transcript: typeof triageTranscript === "string" ? triageTranscript : JSON.stringify(triageTranscript),
+      triage_recording_url: triageRecordingUrl || null
+    })
+    .returning("*");
+  
+  if (alert) {
+    await addTimelineEntry(id, `triage_${triageStatus}`, "AI Assistant", `AI completed triage and verified situation.`);
+  }
+  return alert || null;
+}

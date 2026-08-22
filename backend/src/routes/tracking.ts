@@ -11,9 +11,8 @@ router.get("/tourists", async (_req: Request, res: Response) => {
     const tourists = await db("tourists as t")
       .join("digital_ids as di", "t.id", "di.tourist_id")
       .leftJoin(
-        db("location_pings")
-          .select("tourist_id")
-          .max("timestamp as last_ping")
+        db.select("tourist_id", db.raw("max(timestamp) as last_ping"))
+          .from("location_pings")
           .groupBy("tourist_id")
           .as("lp"),
         "t.id", "lp.tourist_id"
@@ -24,9 +23,8 @@ router.get("/tourists", async (_req: Request, res: Response) => {
         );
       })
       .leftJoin(
-        db("ai_analyses")
-          .select("tourist_id")
-          .max("created_at as last_analysis")
+        db.select("tourist_id", db.raw("max(created_at) as last_analysis"))
+          .from("ai_analyses")
           .groupBy("tourist_id")
           .as("aa"),
         "t.id", "aa.tourist_id"

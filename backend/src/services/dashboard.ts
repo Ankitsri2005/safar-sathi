@@ -78,17 +78,22 @@ export async function getAlertStatsOverTime(days: number = 30) {
 // ── Most Visited Zones ─────────────────────────────────────────
 
 export async function getMostVisitedZones() {
-  return db("location_pings as lp")
-    .join("zones as z", function () {
-      this.onRaw(
-        "ST_Contains(ST_GeomFromGeoJSON(z.polygon_geojson), ST_SetSRID(ST_MakePoint(lp.lng, lp.lat), 4326))"
-      );
-    })
-    .select("z.name", "z.risk_level")
-    .count("lp.id as visit_count")
-    .groupBy("z.name", "z.risk_level")
-    .orderBy("visit_count", "desc")
-    .limit(10);
+  try {
+    const res = await db.raw(`
+      SELECT z.name, z.risk_level, COUNT(lp.id) as visit_count
+      FROM location_pings lp
+      JOIN zones z ON ST_Contains(ST_GeomFromGeoJSON(z.polygon_geojson::text), ST_SetSRID(ST_MakePoint(lp.lng, lp.lat), 4326))
+      GROUP BY z.name, z.risk_level
+      ORDER BY visit_count DESC
+      LIMIT 10
+    `);
+    return res.rows || (Array.isArray(res) ? res : []);
+  } catch {
+    return db("zones")
+      .select("name", "risk_level")
+      .select(db.raw("0 as visit_count"))
+      .limit(10);
+  }
 }
 
 // ── Alerts by Type ─────────────────────────────────────────────
@@ -188,7 +193,8 @@ export async function getFalsePositiveRate(days: number = 30) {
     FROM alerts
     WHERE created_at >= NOW() - INTERVAL '${d}' day
   `);
-  const row = result.rows[0];
+  const rows = result.rows || (Array.isArray(result) ? result : []);
+  const row = rows[0] || {};
   return {
     total_alerts: parseInt(row?.total_alerts || "0", 10),
     false_positives: parseInt(row?.false_positives || "0", 10),
@@ -218,8 +224,9 @@ export async function getTouristDensityHeatmap(days: number = 7) {
     GROUP BY row, col
   `);
 
+  const grid = result.rows || (Array.isArray(result) ? result : []);
   return {
-    grid: result.rows,
+    grid,
     bounds: { min_lat: MIN_LAT, max_lat: MAX_LAT, min_lng: MIN_LNG, max_lng: MAX_LNG },
     grid_size: GRID_SIZE,
   };
@@ -247,8 +254,9 @@ export async function getAlertDensityHeatmap(days: number = 30) {
     GROUP BY row, col
   `);
 
+  const grid = result.rows || (Array.isArray(result) ? result : []);
   return {
-    grid: result.rows,
+    grid,
     bounds: { min_lat: MIN_LAT, max_lat: MAX_LAT, min_lng: MIN_LNG, max_lng: MAX_LNG },
     grid_size: GRID_SIZE,
   };

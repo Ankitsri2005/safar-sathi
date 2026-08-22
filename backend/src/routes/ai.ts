@@ -15,8 +15,10 @@ async function proxyToAIService(method: string, path: string, body?: any): Promi
   if (body && method !== "GET") init.body = JSON.stringify(body);
   const resp = await fetch(url, init);
   if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`AI service error ${resp.status}: ${err}`);
+    const errText = await resp.text();
+    const err: any = new Error(`AI service error ${resp.status}: ${errText}`);
+    err.status = resp.status;
+    throw err;
   }
   return resp.json();
 }
@@ -28,7 +30,8 @@ router.post("/analyze/:touristId", async (req: Request, res: Response) => {
     });
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ error: err.message || "Analysis failed" });
+    const statusCode = err.status || 500;
+    res.status(statusCode).json({ error: err.message || "Analysis failed" });
   }
 });
 

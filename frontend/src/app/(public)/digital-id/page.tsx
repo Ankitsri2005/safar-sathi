@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/Button";
@@ -8,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { DigitalIdCard, type DigitalIdData } from "@/components/digital-id/DigitalIdCard";
 import Footer from "@/components/layout/Footer";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
   Shield,
   Search,
@@ -19,15 +21,17 @@ import {
   Info,
 } from "lucide-react";
 
-export default function DigitalIdPage() {
+function DigitalIdContent() {
+  const { t } = useLanguage();
+  const searchParams = useSearchParams();
   const [touristId, setTouristId] = useState("");
   const [blockId, setBlockId] = useState("");
   const [result, setResult] = useState<DigitalIdData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLookup = async () => {
-    if (!touristId.trim()) {
+  const executeLookup = async (tid: string, bid: string) => {
+    if (!tid.trim()) {
       setError("Please enter a Tourist ID");
       return;
     }
@@ -36,16 +40,20 @@ export default function DigitalIdPage() {
     setResult(null);
 
     try {
-      const res = await api.get(`/verify-id/${touristId.trim()}/${blockId.trim() || "latest"}`);
+      const res = await api.get(`/verify-id/${tid.trim()}/${bid.trim() || "latest"}`);
       const d = res.data;
+      if (d.status === "not_found" || !d.tourist) {
+        setError("Could not find a Digital ID matching your input. Check the IDs and try again.");
+        return;
+      }
       setResult({
-        tourist_id: d.tourist?.id || touristId,
-        full_name: d.tourist?.full_name || "Unknown Tourist",
+        tourist_id: d.tourist?.id || tid,
+        full_name: d.tourist?.full_name || "Tourist",
         photo_url: d.tourist?.photo_url || null,
         trip_start: d.tourist?.trip_start || new Date().toISOString(),
         trip_end: d.tourist?.trip_end || new Date().toISOString(),
-        block_id: d.blockId || blockId || "N/A",
-        status: d.valid ? "active" : d.expired ? "expired" : "pending",
+        block_id: d.blockId || bid || "N/A",
+        status: d.valid ? "active" : d.status === "expired" ? "expired" : "pending",
         issued_at: d.issued_at,
       });
     } catch {
@@ -53,6 +61,20 @@ export default function DigitalIdPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    const qId = searchParams.get("id");
+    const qBlock = searchParams.get("block");
+    if (qId) {
+      setTouristId(qId);
+      if (qBlock) setBlockId(qBlock);
+      executeLookup(qId, qBlock || "latest");
+    }
+  }, [searchParams]);
+
+  const handleLookup = () => {
+    executeLookup(touristId, blockId);
   };
 
   return (
@@ -66,10 +88,10 @@ export default function DigitalIdPage() {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-fg">
-            Digital Tourist <span className="gradient-text">ID</span>
+            {t("dig_title")}
           </h1>
           <p className="text-muted mt-2 text-sm max-w-md mx-auto">
-            View, print, or download your blockchain-secured Digital Tourist Identity card.
+            {t("dig_subtitle")}
           </p>
         </div>
 
@@ -164,5 +186,13 @@ export default function DigitalIdPage() {
       </div>
       <Footer />
     </div>
+  );
+}
+
+export default function DigitalIdPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-bg pt-24 text-center text-muted">Loading Digital ID...</div>}>
+      <DigitalIdContent />
+    </Suspense>
   );
 }

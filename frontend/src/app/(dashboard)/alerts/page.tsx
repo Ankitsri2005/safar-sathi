@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import api from "@/lib/api";
+import { useSocket } from "@/contexts/SocketContext";
+import { cn } from "@/utils/cn";
 import { Alert, AlertStatus, AlertType, ALERT_TYPE_LABELS, type AlertTimelineEntry, type AIAnalysisResult } from "@/types";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -58,10 +60,17 @@ const TYPE_ICONS: Record<string, typeof AlertTriangle> = {
 };
 
 export default function AlertsPage() {
+  const { socket } = useSocket();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Alert | null>(null);
+  const [showTriageModal, setShowTriageModal] = useState(false);
+  const [triageStep, setTriageStep] = useState(0);
+  const [triageMessages, setTriageMessages] = useState<any[]>([]);
+  const [triageTargetAlert, setTriageTargetAlert] = useState<Alert | null>(null);
+  const [triageLang, setTriageLang] = useState<"en" | "hi" | "ne">("en");
+  
   const [timeline, setTimeline] = useState<AlertTimelineEntry[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -77,6 +86,236 @@ export default function AlertsPage() {
   const [aiAnalysis, setAiAnalysis] = useState<AIAnalysisResult | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [stats, setStats] = useState({ total: 0, new: 0, acknowledged: 0, under_review: 0, escalated: 0, resolved: 0, false_positive: 0 });
+
+function formatCoord(val: any, decimals = 2): string {
+  if (val === null || val === undefined) return "N/A";
+  const num = typeof val === "number" ? val : parseFloat(val);
+  return isNaN(num) ? "N/A" : num.toFixed(decimals);
+}
+
+  const TRIAGE_DIALOG_MULTILINGUAL: Record<"en" | "hi" | "ne", any[]> = {
+    en: [
+      {
+        ai: "Sikkim Smart Safety AI. I detected an emergency alert from your device. Are you hurt? Is anyone with you?",
+        options: [
+          { text: "I'm injured and alone.", next: 1 },
+          { text: "Stranded with group/family.", next: 2 },
+          { text: "No injuries, just lost the trail.", next: 3 }
+        ]
+      },
+      {
+        ai: "Medical priority flagged. Are you bleeding or experiencing fracture pain? Can you stand or walk?",
+        options: [
+          { text: "Severe leg pain, unable to stand. No visible bleeding.", next: 4 },
+          { text: "Minor scrapes and cuts, but I can walk slowly.", next: 4 }
+        ]
+      },
+      {
+        ai: "Group stranded. What is your group size? Do you have drinking water and shelter from the rain?",
+        options: [
+          { text: "Group of 3, no shelter. It's raining heavily.", next: 4 },
+          { text: "Group of 2, we have rain protection gear.", next: 4 }
+        ]
+      },
+      {
+        ai: "Lost trail. Is visibility low due to fog/landslide? Do you have sufficient phone battery?",
+        options: [
+          { text: "Dense fog, zero visibility. Battery is around 25%.", next: 4 },
+          { text: "Can see landmarks but lost direction. Have powerbank.", next: 4 }
+        ]
+      },
+      {
+        ai: "Thank you. I have locked your exact coordinates and synced your triage status. Responders have been briefed with this transcript. Keep this screen open.",
+        options: [
+          { text: "Finish Triage & Dispatch Details", next: -1 }
+        ]
+      }
+    ],
+    hi: [
+      {
+        ai: "सिक्किम स्मार्ट सुरक्षा एआई। मैंने आपके डिवाइस से एक आपातकालीन अलर्ट का पता लगाया है। क्या आप घायल हैं? क्या कोई आपके साथ है?",
+        options: [
+          { text: "मैं घायल हूँ और अकेला हूँ।", next: 1 },
+          { text: "समूह/परिवार के साथ फंसा हुआ हूँ।", next: 2 },
+          { text: "कोई चोट नहीं, बस रास्ता भटक गया हूँ।", next: 3 }
+        ]
+      },
+      {
+        ai: "चिकित्सा प्राथमिकता चिह्नित। क्या आपको रक्तस्राव हो रहा है या फ्रैक्चर का दर्द है? क्या आप खड़े हो सकते हैं या चल सकते हैं?",
+        options: [
+          { text: "पैर में गंभीर दर्द, खड़े होने में असमर्थ। कोई रक्तस्राव नहीं।", next: 4 },
+          { text: "मामूली खरोंचें, लेकिन मैं धीरे-धीरे चल सकता हूँ।", next: 4 }
+        ]
+      },
+      {
+        ai: "समूह फंसा हुआ है। आपके समूह का आकार क्या है? क्या आपके पास पीने का पानी और बारिश से बचने के लिए आश्रय है?",
+        options: [
+          { text: "3 का समूह, कोई आश्रय नहीं। भारी बारिश हो रही है।", next: 4 },
+          { text: "2 का समूह, हमारे पास रेन गियर है।", next: 4 }
+        ]
+      },
+      {
+        ai: "रास्ता भटक गया। क्या कोहरे/भूस्खलन के कारण दृश्यता कम है? क्या आपके फोन में पर्याप्त बैटरी है?",
+        options: [
+          { text: "घना कोहरा, शून्य दृश्यता। बैटरी लगभग 25% है।", next: 4 },
+          { text: "लैंडमार्क देख सकता हूँ पर दिशा भूल गया हूँ। पावरबैंक है।", next: 4 }
+        ]
+      },
+      {
+        ai: "धन्यवाद। मैंने आपके सटीक निर्देशांक लॉक कर दिए हैं और आपकी ट्राइएज स्थिति को सिंक कर दिया है। उत्तरदाताओं को इस प्रतिलेख के साथ जानकारी दे दी गई है। इस स्क्रीन को खुला रखें।",
+        options: [
+          { text: "ट्राइएज समाप्त करें और विवरण भेजें", next: -1 }
+        ]
+      }
+    ],
+    ne: [
+      {
+        ai: "सिक्किम स्मार्ट सुरक्षा एआई। मैले तपाईंको उपकरणबाट आपतकालीन अलर्ट फेला पारेको छु। के तपाईंलाई चोट लागेको छ? कोही तपाईंसँग हुनुहुन्छ?",
+        options: [
+          { text: "म घाइते छु र एक्लै छु।", next: 1 },
+          { text: "समूह/परिवारसँग अलपत्र परेको छु।", next: 2 },
+          { text: "चोटपटक लागेको छैन, बाटो मात्र बिराएको हो।", next: 3 }
+        ]
+      },
+      {
+        ai: "चिकित्सा प्राथमिकता तोकिएको छ। के तपाईंको रक्तस्राव भइरहेको छ वा फ्र्याक्चरको पीडा छ? के तपाईं उभिन वा हिँड्न सक्नुहुन्छ?",
+        options: [
+          { text: "खुट्टामा गम्भीर दुखाइ, उभिन असमर्थ। रक्तस्राव छैन।", next: 4 },
+          { text: "सामान्य चोटपटक, तर म बिस्तारै हिँड्न सक्छु।", next: 4 }
+        ]
+      },
+      {
+        ai: "समूह अलपत्र। तपाईंको समूहको संख्या कति हो? के तपाईंसँग पिउने पानी र पानीबाट बच्ने ओत छ?",
+        options: [
+          { text: "३ जनाको समूह, ओत छैन। मुसलधारे पानी परिरहेको छ।", next: 4 },
+          { text: "२ जनाको समूह, हामीसँग रेन गियर छ।", next: 4 }
+        ]
+      },
+      {
+        ai: "बाटो बिराएको। के कुहिरो/पहिरोका कारण बाटो देखिँदैन? के तपाईंको फोनमा पर्याप्त ब्याट्री छ?",
+        options: [
+          { text: "बाक्लो कुहिरो, शून्य दृश्यता। ब्याट्री २५% जति छ।", next: 4 },
+          { text: "दृश्यहरू देखिन्छन् तर दिशा हरायो। पावरबैंक छ।", next: 4 }
+        ]
+      },
+      {
+        ai: "धन्यवाद। मैले तपाईंको सटीक स्थान रेकर्ड गरेको छु र ट्राइएज अपडेट गरेको छु। उद्धार टोलीलाई जानकारी पठाइएको छ। कृपया यो स्क्रिन खुल्लै राख्नुहोस्।",
+        options: [
+          { text: "ट्राइएज पुरा गर्नुहोस्", next: -1 }
+        ]
+      }
+    ]
+  };
+
+  const handleStartTriageSimulation = (alert: Alert) => {
+    setTriageTargetAlert(alert);
+    setTriageStep(0);
+    setTriageLang("en");
+    setTriageMessages([{ role: "assistant", text: TRIAGE_DIALOG_MULTILINGUAL.en[0].ai }]);
+    setShowTriageModal(true);
+  };
+
+  const handleTriageOptionSelect = async (option: any) => {
+    if (!triageTargetAlert) return;
+    
+    const updatedMessages = [...triageMessages, { role: "user", text: option.text }];
+    
+    if (option.next === -1) {
+      setShowTriageModal(false);
+      try {
+        await api.patch(`/alerts/${triageTargetAlert.id}/triage`, {
+          triage_status: "completed",
+          triage_transcript: updatedMessages
+        });
+        
+        const updatedAlert = { ...triageTargetAlert, triage_status: "completed", triage_transcript: updatedMessages };
+        setSelected(updatedAlert);
+        setAlerts((prev) => prev.map((a) => a.id === triageTargetAlert.id ? updatedAlert : a));
+        fetchTimeline(triageTargetAlert.id);
+      } catch (err) {
+        console.error("Failed to complete triage:", err);
+      }
+      return;
+    }
+
+    const nextStep = option.next;
+    setTriageStep(nextStep);
+    
+    const nextAiText = TRIAGE_DIALOG_MULTILINGUAL[triageLang][nextStep].ai;
+    const finalMessages = [...updatedMessages, { role: "assistant", text: nextAiText }];
+    setTriageMessages(finalMessages);
+
+    try {
+      await api.patch(`/alerts/${triageTargetAlert.id}/triage`, {
+        triage_status: "in_progress",
+        triage_transcript: finalMessages
+      });
+      const updatedAlert = { ...triageTargetAlert, triage_status: "in_progress", triage_transcript: finalMessages };
+      setSelected(updatedAlert);
+      setAlerts((prev) => prev.map((a) => a.id === triageTargetAlert.id ? updatedAlert : a));
+      fetchTimeline(triageTargetAlert.id);
+    } catch {}
+  };
+
+  // Dynamic language updates during simulation
+  useEffect(() => {
+    setTriageMessages((prev) => {
+      if (prev.length === 0) return prev;
+      const copy = [...prev];
+      const lastMsg = copy[copy.length - 1];
+      if (lastMsg && lastMsg.role === "assistant") {
+        const localizedAiText = TRIAGE_DIALOG_MULTILINGUAL[triageLang][triageStep]?.ai;
+        if (localizedAiText && lastMsg.text !== localizedAiText) {
+          copy[copy.length - 1] = { ...lastMsg, text: localizedAiText };
+          return copy;
+        }
+      }
+      return prev;
+    });
+  }, [triageLang, triageStep]);
+
+  const parseTranscript = (t: any) => {
+    if (!t) return [];
+    if (Array.isArray(t)) return t;
+    try {
+      return typeof t === "string" ? JSON.parse(t) : t;
+    } catch {
+      return [];
+    }
+  };
+
+  // Listen for real-time triage updates
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleTriageUpdate = (data: { alert_id: string; triage_status: string; triage_transcript: any }) => {
+      setAlerts((prev) =>
+        prev.map((a) =>
+          a.id === data.alert_id
+            ? { ...a, triage_status: data.triage_status, triage_transcript: data.triage_transcript }
+            : a
+        )
+      );
+
+      setSelected((prev) => {
+        if (prev?.id === data.alert_id) {
+          return { ...prev, triage_status: data.triage_status, triage_transcript: data.triage_transcript };
+        }
+        return prev;
+      });
+
+      if (selected?.id === data.alert_id) {
+        fetchTimeline(data.alert_id);
+      }
+    };
+
+    socket.on("alert:triage_update", handleTriageUpdate);
+
+    return () => {
+      socket.off("alert:triage_update", handleTriageUpdate);
+    };
+  }, [socket, selected?.id]);
+
 
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
@@ -291,7 +530,7 @@ export default function AlertsPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-xs text-muted max-w-[120px] truncate">
-                            {alert.location_name || `${alert.location_lat.toFixed(2)}, ${alert.location_lng.toFixed(2)}`}
+                            {alert.location_name || `${formatCoord(alert.location_lat, 2)}, ${formatCoord(alert.location_lng, 2)}`}
                           </td>
                           <td className="px-4 py-3 text-xs text-muted whitespace-nowrap">
                             {new Date(alert.created_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
@@ -371,7 +610,7 @@ export default function AlertsPage() {
                   <MapPin className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-fg">{selected.location_name || "Unknown location"}</p>
-                    <p className="text-xs text-muted font-mono">{selected.location_lat.toFixed(4)}, {selected.location_lng.toFixed(4)}</p>
+                    <p className="text-xs text-muted font-mono">{formatCoord(selected.location_lat, 4)}, {formatCoord(selected.location_lng, 4)}</p>
                   </div>
                 </div>
                 <div className="mt-2 h-32 rounded-lg bg-gradient-to-br from-surface to-surface-light border border-border flex items-center justify-center relative overflow-hidden">
@@ -380,7 +619,7 @@ export default function AlertsPage() {
                   </div>
                   <div className="relative flex flex-col items-center">
                     <MapPin className="w-6 h-6 text-danger animate-bounce" />
-                    <span className="text-[9px] text-white/50 mt-1">{selected.location_lat.toFixed(2)}, {selected.location_lng.toFixed(2)}</span>
+                    <span className="text-[9px] text-white/50 mt-1">{formatCoord(selected.location_lat, 2)}, {formatCoord(selected.location_lng, 2)}</span>
                   </div>
                 </div>
               </div>
@@ -506,6 +745,70 @@ export default function AlertsPage() {
                 )}
               </div>
 
+              {/* AI First Response Triage */}
+              <div className="p-3 rounded-xl bg-bg border border-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[10px] font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-primary" />
+                    AI First Response Triage
+                  </h4>
+                  <Badge variant={selected.triage_status === "completed" ? "success" : "warning"} size="sm">
+                    {selected.triage_status === "completed" ? "Triage Complete" : "Triage Pending"}
+                  </Badge>
+                </div>
+
+                {selected.triage_status === "completed" && (
+                  <div className="p-2.5 rounded-lg bg-surface/50 border border-border flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0 animate-pulse">
+                        <Zap className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <span className="font-semibold text-fg block">Listen to Voice Triage</span>
+                        <span className="text-[10px] text-muted font-mono">Multilingual AI Voice Assistant (Nepali/Hindi/EN)</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-0.5 shrink-0 px-2">
+                      <div className="w-0.5 h-3 bg-primary/45 rounded-full"></div>
+                      <div className="w-0.5 h-4 bg-primary/75 rounded-full"></div>
+                      <div className="w-0.5 h-2 bg-primary/45 rounded-full"></div>
+                      <div className="w-0.5 h-5 bg-primary rounded-full animate-bounce"></div>
+                      <div className="w-0.5 h-3 bg-primary/75 rounded-full"></div>
+                    </div>
+                  </div>
+                )}
+
+                {selected.triage_transcript ? (
+                  <div className="space-y-3 max-h-48 overflow-y-auto pr-1 border-l-2 border-primary/20 pl-3 text-xs">
+                    {parseTranscript(selected.triage_transcript).map((chat: any, i: number) => (
+                      <div key={i} className="space-y-0.5">
+                        <span className={cn("font-bold block uppercase tracking-wider text-[8px]", chat.role === "assistant" ? "text-primary" : "text-fg")}>
+                          {chat.role === "assistant" ? "AI Assistant (Voice)" : "Tourist (Voice)"}
+                        </span>
+                        <p className="text-fg leading-relaxed bg-surface/30 p-1.5 rounded-lg border border-border/20">
+                          {chat.text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-3 py-1 text-center">
+                    <p className="text-xs text-muted max-w-sm mx-auto">
+                      No triage transcript recorded. Simulate a voice triage conversation to capture emergency status before dispatch.
+                    </p>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handleStartTriageSimulation(selected)}
+                      className="w-full justify-center"
+                      icon={<MessageSquare className="w-3.5 h-3.5" />}
+                    >
+                      Start AI Triage Simulation
+                    </Button>
+                  </div>
+                )}
+              </div>
+
               {/* Actions */}
               <div className="flex gap-2 flex-wrap">
                 {selected.status === "new" && (
@@ -580,6 +883,70 @@ export default function AlertsPage() {
             <Button variant="primary" className="flex-1" loading={actionLoading} onClick={() => selected && handleStatusUpdate(selected.id, AlertStatus.RESOLVED, resolveNotes || undefined)}>
               Resolve Alert
             </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* AI Triage Simulation Modal */}
+      <Modal open={showTriageModal} onClose={() => setShowTriageModal(false)} title="AI Multilingual Voice Triage Assistant" size="sm">
+        <div className="space-y-4">
+          <p className="text-xs text-muted">
+            Simulate the multilingual voice assistant triaging the tourist's safety to collect context for rescue dispatch.
+          </p>
+
+          <div className="rounded-xl border border-border bg-bg/50 overflow-hidden flex flex-col h-72">
+            <div className="bg-primary/5 px-3 py-2 border-b border-border flex items-center justify-between text-xs">
+              <div className="flex items-center gap-1.5 font-semibold text-fg">
+                <Brain className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span>Sikkim Emergency AI (Voice)</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse"></span>
+                <span className="text-[10px] text-muted uppercase">Connected</span>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {triageMessages.map((m, i) => (
+                <div key={i} className={cn("flex flex-col max-w-[85%] space-y-0.5", m.role === "assistant" ? "mr-auto items-start" : "ml-auto items-end")}>
+                  <span className="text-[8px] text-muted font-bold tracking-wider uppercase">
+                    {m.role === "assistant" ? "AI Voice Assistant" : "Tourist Response"}
+                  </span>
+                  <div className={cn("rounded-xl px-3 py-2 text-xs border", 
+                    m.role === "assistant" ? "bg-white text-fg border-border" : "bg-primary text-white border-primary"
+                  )}>
+                    {m.text}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {triageStep < TRIAGE_DIALOG_MULTILINGUAL[triageLang].length && (
+              <div className="bg-primary/5 px-3 py-2 border-t border-border flex items-center justify-center gap-1">
+                <span className="text-[10px] text-primary font-medium font-mono mr-2">Voice Spectrum:</span>
+                <div className="flex items-center gap-0.5 h-4">
+                  <div className="w-0.5 h-2 bg-primary/60 rounded animate-pulse"></div>
+                  <div className="w-0.5 h-3.5 bg-primary rounded animate-pulse"></div>
+                  <div className="w-0.5 h-1.5 bg-primary/45 rounded animate-pulse"></div>
+                  <div className="w-0.5 h-4 bg-primary rounded animate-pulse"></div>
+                  <div className="w-0.5 h-2 bg-primary/60 rounded animate-pulse"></div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            {triageStep < TRIAGE_DIALOG_MULTILINGUAL[triageLang].length && TRIAGE_DIALOG_MULTILINGUAL[triageLang][triageStep]?.options.map((opt: any, i: number) => (
+              <Button
+                key={i}
+                variant="outline"
+                size="sm"
+                onClick={() => handleTriageOptionSelect(opt)}
+                className="w-full justify-start text-xs border border-primary/20 hover:border-primary/50 hover:bg-primary/5 whitespace-normal py-2 text-left"
+              >
+                {opt.text}
+              </Button>
+            ))}
           </div>
         </div>
       </Modal>

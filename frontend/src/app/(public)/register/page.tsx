@@ -149,7 +149,7 @@ const stepFields: Record<number, (keyof FormData)[]> = {
 };
 
 const CONFETTI_COLORS = [
-  "#1e40af", "#f97316", "#16a34a", "#dc2626",
+  "#0f766e", "#f97316", "#16a34a", "#dc2626",
   "#d97706", "#7c3aed", "#0891b2", "#be185d",
 ];
 
@@ -326,9 +326,9 @@ export default function RegisterPage() {
         email: data.email,
         emergency_contact_name: data.emergency_contact_name,
         emergency_contact_phone: data.emergency_contact_phone,
-        trip_start: data.trip_start,
-        trip_end: data.trip_end,
-        itinerary: data.itinerary,
+        trip_start: data.trip_start ? new Date(data.trip_start).toISOString() : new Date().toISOString(),
+        trip_end: data.trip_end ? new Date(data.trip_end).toISOString() : new Date(Date.now() + 7 * 86400000).toISOString(),
+        itinerary: Array.isArray(data.itinerary) ? data.itinerary : [],
         consent_tracking: data.consent_tracking,
       };
       const res = await api.post("/register", payload);
@@ -337,7 +337,19 @@ export default function RegisterPage() {
       toast.success("Registration successful! Your Digital Tourist ID has been created.");
       setTimeout(triggerConfetti, 400);
     } catch (err: any) {
-      const msg = err.response?.data?.error || "Registration failed. Please try again.";
+      let msg = "Registration failed. Please try again.";
+      if (err.response?.data) {
+        const d = err.response.data;
+        if (Array.isArray(d.details) && d.details.length > 0) {
+          msg = d.details.map((item: any) => item.msg || item.message || JSON.stringify(item)).join(", ");
+        } else if (typeof d.details === "string" && d.details.trim()) {
+          msg = d.details;
+        } else if (d.error) {
+          msg = d.error;
+        } else if (d.message) {
+          msg = d.message;
+        }
+      }
       setApiError(msg);
       toast.error(msg);
     }

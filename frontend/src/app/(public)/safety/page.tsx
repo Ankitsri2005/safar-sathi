@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Footer from "@/components/layout/Footer";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { AnimateOnScroll } from "@/components/ui/AnimateOnScroll";
 import { Button } from "@/components/ui/Button";
 import {
@@ -84,6 +85,7 @@ const weatherSafety = [
 ];
 
 export default function SafetyPage() {
+  const { t } = useLanguage();
   return (
     <div className="min-h-screen">
       {/* Hero */}
@@ -97,9 +99,9 @@ export default function SafetyPage() {
             <div className="w-16 h-16 bg-success/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
               <Shield className="w-8 h-8 text-success-light" />
             </div>
-            <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">Safety Instructions</h1>
+            <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">{t("saf_title")}</h1>
             <p className="text-lg text-white/50 max-w-xl mx-auto">
-              Essential guidelines to ensure a safe and memorable journey across India.
+              {t("saf_subtitle")}
             </p>
           </AnimateOnScroll>
         </div>
