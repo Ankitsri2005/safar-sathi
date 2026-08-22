@@ -21,6 +21,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Database connection
+DATABASE_URL = os.getenv("DATABASE_URL")
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
@@ -49,6 +50,8 @@ FEATURE_NAMES = [
 
 def get_db():
     """Get a database connection."""
+    if os.getenv("DATABASE_URL"):
+        return connect(os.getenv("DATABASE_URL"), cursor_factory=RealDictCursor)
     return connect(**DB_CONFIG, cursor_factory=RealDictCursor)
 
 
