@@ -136,6 +136,7 @@ export async function verifyDigitalId(
     digitalId = await db(DIGITAL_ID_TABLE)
       .where({ tourist_id: touristId })
       .orWhere({ id: touristId })
+      .orWhere({ block_id: touristId })
       .orderBy("issued_at", "desc")
       .first();
   } else {

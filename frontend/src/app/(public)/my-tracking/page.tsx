@@ -109,36 +109,41 @@ export default function MyTrackingPage() {
     return () => clearTimeout(t);
   }, [panicCooldown]);
 
+  const touristRef = useRef<any>(null);
+
   const executeLookup = async (idToSearch: string) => {
     setLookupError("");
     setTourist(null);
-    if (!idToSearch) { setLookupError("Please enter your Tourist ID"); return; }
+    if (!idToSearch) { setLookupError("Please enter your Tourist ID or Blockchain Hash ID"); return; }
 
     try {
-      const res = await api.get(`/verify-id/${idToSearch}/latest`);
+      const res = await api.get(`/verify-id/${encodeURIComponent(idToSearch)}/latest`);
       const d = res.data;
-      if (d && d.tourist) {
-        setTourist({
-          id: d.tourist.id || idToSearch,
-          full_name: d.tourist.full_name || "Registered Tourist",
-          phone: d.tourist.phone || "N/A",
-          email: d.tourist.email || "N/A",
-          emergency_contact_name: d.tourist.emergency_contact_name || "Emergency Contact",
-          emergency_contact_phone: d.tourist.emergency_contact_phone || "N/A",
-          id_type: d.tourist.id_type || "Aadhaar",
-          id_number: d.tourist.id_number || "Verified",
-          trip_start: d.tourist.trip_start || new Date().toISOString(),
-          trip_end: d.tourist.trip_end || new Date().toISOString(),
-          status: "active",
-          safety_score: 95,
+      if (d && (d.tourist || d.valid)) {
+        const touristData = {
+          id: d.tourist?.id || idToSearch,
+          full_name: d.tourist?.full_name || "Registered Tourist",
+          phone: d.tourist?.phone || "N/A",
+          email: d.tourist?.email || "N/A",
+          emergency_contact_name: d.tourist?.emergency_contact_name || "Emergency Contact",
+          emergency_contact_phone: d.tourist?.emergency_contact_phone || "N/A",
+          id_type: d.tourist?.id_type || "Aadhaar",
+          id_number: d.tourist?.id_number || "Verified",
+          trip_start: d.tourist?.trip_start || new Date().toISOString(),
+          trip_end: d.tourist?.trip_end || new Date(Date.now() + 7 * 86400000).toISOString(),
+          status: d.status || "active",
+          safety_score: 98,
           current_lat: 27.3334,
           current_lng: 88.6095,
-          current_zone: "Gangtok Town",
+          current_zone: "Safe Corridor",
           last_update: new Date().toISOString(),
           consent_tracking: true,
           itinerary: [],
           movement_history: [],
-        });
+          block_id: d.blockId || idToSearch,
+        };
+        touristRef.current = touristData;
+        setTourist(touristData as any);
         setConsentGiven(true);
         return;
       }
@@ -146,10 +151,11 @@ export default function MyTrackingPage() {
 
     const found = MOCK_TOURISTS.find((t) => t.id.toLowerCase() === idToSearch.toLowerCase());
     if (found) {
+      touristRef.current = found;
       setTourist(found);
       setConsentGiven(found.consent_tracking);
     } else {
-      setLookupError("Tourist ID not found. Please check your ID and try again.");
+      setLookupError("Tourist ID or Blockchain Hash not found. Please check your credentials and try again.");
     }
   };
 
@@ -174,19 +180,20 @@ export default function MyTrackingPage() {
           timestamp: pos.timestamp,
         });
         setIsTracking(true);
-        if (tourist) {
-          api.post("/location-ping", { tourist_id: tourist.id, lat, lng }).catch(() => {});
+        const currentT = touristRef.current;
+        if (currentT?.id) {
+          api.post("/location-ping", { tourist_id: currentT.id, lat, lng }).catch(() => {});
         }
       },
       (err) => {
         setLocationError(
-          err.code === 1 ? "Location access denied. Please enable location permissions." :
+          err.code === 1 ? "Location access denied. Please enable location permissions in your browser." :
           err.code === 2 ? "Location unavailable. Please try again." :
           "Location request timed out. Please try again."
         );
         setIsTracking(false);
       },
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
     setWatchId(id);
   }, [consentGiven]);
@@ -264,11 +271,20 @@ export default function MyTrackingPage() {
             </div>
 
             <div className="mt-4 p-3 rounded-xl bg-bg border border-border">
-              <p className="text-xs text-muted font-medium mb-2">Try these sample IDs:</p>
+              <p className="text-xs text-muted font-medium mb-2">Registered Tourist IDs / Blockchain Hashes:</p>
               <div className="space-y-1">
-                {["TST-A1B2C3D4-E5F6", "TST-F7G8H9I0-J1K2", "TST-L3M4N5O6-P7Q8"].map((id) => (
-                  <button key={id} onClick={() => setTouristId(id)} className="w-full text-left px-2 py-1.5 rounded-lg text-xs font-mono text-fg hover:bg-surface-light/10 transition-colors">
-                    {id}
+                {[
+                  { label: "Ankit kr Srivastava (Hash ID)", id: "79eb79ae-15f8-473c-af7b-5985039f5e96" },
+                  { label: "Rahul Sharma (Hash ID)", id: "61012c47-4821-4ba5-bc9e-c59976bcf2e3" },
+                  { label: "SIH Demo Tourist (Aadhaar)", id: "DEMO-SIH-2024" },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => { setTouristId(item.id); executeLookup(item.id); }}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-mono text-fg hover:bg-surface-light/20 flex items-center justify-between transition-colors"
+                  >
+                    <span className="text-primary font-sans font-medium">{item.label}</span>
+                    <span className="text-muted text-[11px]">{item.id.slice(0, 8)}...</span>
                   </button>
                 ))}
               </div>
