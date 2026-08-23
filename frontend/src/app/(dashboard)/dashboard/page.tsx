@@ -59,14 +59,14 @@ export default function DashboardOverview() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [ovRes, alertRes, zoneRes] = await Promise.all([
+      const [ovRes, alertRes, zoneRes] = await Promise.allSettled([
         api.get("/dashboard/overview"),
         api.get("/alerts", { params: { status: "new", limit: "10" } }),
         api.get("/zones", { params: { active: "true" } }),
       ]);
-      setOverview(ovRes.data);
-      setAlerts(alertRes.data.data || alertRes.data);
-      setZones(zoneRes.data);
+      if (ovRes.status === "fulfilled") setOverview(ovRes.value.data);
+      if (alertRes.status === "fulfilled") setAlerts(alertRes.value.data.data || alertRes.value.data);
+      if (zoneRes.status === "fulfilled") setZones(zoneRes.value.data);
     } catch {}
     setLoading(false);
   };

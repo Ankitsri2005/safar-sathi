@@ -168,8 +168,7 @@ export async function listAlerts(filters?: {
   const limit = filters?.limit || 20;
 
   let query = db(TABLE)
-    .join("tourists", "alerts.tourist_id", "tourists.id")
-    .select("alerts.*", "tourists.full_name as tourist_name");
+    .join("tourists", "alerts.tourist_id", "tourists.id");
 
   if (filters?.status) {
     query = query.where("alerts.status", filters.status);
@@ -192,6 +191,7 @@ export async function listAlerts(filters?: {
   const total = parseInt((countResult as any)?.total || "0", 10);
 
   const data = await query
+    .select("alerts.*", "tourists.full_name as tourist_name")
     .orderBy("alerts.created_at", "desc")
     .offset((page - 1) * limit)
     .limit(limit);
