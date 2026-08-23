@@ -143,9 +143,14 @@ export default function TrackingPage() {
 
     setIsSimulating(true);
     
-    // Initial coords: center around Gangtok or current coords if available
-    let currentLat = livePositions[selectedTourist.id]?.lat ?? selectedTourist.current_lat ?? 27.3314;
-    let currentLng = livePositions[selectedTourist.id]?.lng ?? selectedTourist.current_lng ?? 88.6138;
+    // Initial coords: center around itinerary stop, live position, current lat or default Gangtok
+    const firstStop = Array.isArray(selectedTourist.itinerary) && selectedTourist.itinerary[0];
+    let currentLat = parseFloat(
+      String(livePositions[selectedTourist.id]?.lat ?? selectedTourist.current_lat ?? (firstStop?.lat ?? 27.3314))
+    );
+    let currentLng = parseFloat(
+      String(livePositions[selectedTourist.id]?.lng ?? selectedTourist.current_lng ?? (firstStop?.lng ?? 88.6138))
+    );
 
     let stepCount = 0;
     
@@ -157,8 +162,8 @@ export default function TrackingPage() {
         const latOffset = 0.0015 * Math.sin(stepCount / 2.5) + (Math.random() - 0.5) * 0.0008;
         const lngOffset = 0.0015 * Math.cos(stepCount / 2.5) + (Math.random() - 0.5) * 0.0008;
         
-        currentLat += latOffset;
-        currentLng += lngOffset;
+        currentLat = parseFloat((currentLat + latOffset).toFixed(8));
+        currentLng = parseFloat((currentLng + lngOffset).toFixed(8));
 
         // 1. Post simulated ping
         await api.post("/location-ping", {
@@ -334,9 +339,9 @@ export default function TrackingPage() {
       const currentTouristsMap: Record<string, boolean> = {};
 
       filteredTourists.forEach((tourist) => {
-        const lat = livePositions[tourist.id]?.lat ?? tourist.current_lat;
-        const lng = livePositions[tourist.id]?.lng ?? tourist.current_lng;
-        if (lat == null || lng == null) return;
+        const lat = parseFloat(String(livePositions[tourist.id]?.lat ?? tourist.current_lat));
+        const lng = parseFloat(String(livePositions[tourist.id]?.lng ?? tourist.current_lng));
+        if (!isFinite(lat) || !isFinite(lng)) return;
 
         currentTouristsMap[tourist.id] = true;
 
