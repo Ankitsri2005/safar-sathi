@@ -261,7 +261,21 @@ export default function DashboardOverview() {
       {/* Map + Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card variant="elevated" padding="none" className="lg:col-span-2 overflow-hidden">
-          <MapPlaceholder height="min-h-[450px]" />
+          <div className="px-5 py-3 border-b border-border flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-fg flex items-center gap-2 text-sm">
+                <MapPin className="w-4 h-4 text-accent" />
+                Critical Alert Map
+              </h2>
+              <p className="text-[10px] text-muted mt-0.5">Real-time view of high-risk tourists & active geofence corridors</p>
+            </div>
+            <Link href="/tracking">
+              <Button variant="primary" size="sm" iconRight={<ArrowRight className="w-3.5 h-3.5" />}>
+                Live Tracking
+              </Button>
+            </Link>
+          </div>
+          <MapPlaceholder height="min-h-[420px]" />
         </Card>
 
         <Card variant="elevated" padding="md">
