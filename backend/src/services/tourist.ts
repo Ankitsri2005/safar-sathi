@@ -7,6 +7,21 @@ import * as blockchain from "./blockchain";
 const TOURIST_TABLE = "tourists";
 const DIGITAL_ID_TABLE = "digital_ids";
 
+function createGeofencePolygon(lat: number, lng: number, delta = 0.015) {
+  return {
+    type: "Polygon",
+    coordinates: [
+      [
+        [Number((lng - delta).toFixed(6)), Number((lat - delta).toFixed(6))],
+        [Number((lng + delta).toFixed(6)), Number((lat - delta).toFixed(6))],
+        [Number((lng + delta).toFixed(6)), Number((lat + delta).toFixed(6))],
+        [Number((lng - delta).toFixed(6)), Number((lat + delta).toFixed(6))],
+        [Number((lng - delta).toFixed(6)), Number((lat - delta).toFixed(6))],
+      ],
+    ],
+  };
+}
+
 export async function registerTourist(data: {
   full_name: string;
   id_type: string;
@@ -48,6 +63,27 @@ export async function registerTourist(data: {
   const tourist = typeof insertedTourist === "object" && insertedTourist !== null && insertedTourist.id
     ? insertedTourist
     : await db(TOURIST_TABLE).where({ id: touristId }).first();
+
+  // Auto-generate safe geofence zones based on tourist's selected itinerary locations
+  if (Array.isArray(data.itinerary)) {
+    for (const item of data.itinerary) {
+      if (item && item.lat && item.lng) {
+        const geojson = createGeofencePolygon(Number(item.lat), Number(item.lng));
+        try {
+          await db("zones").insert({
+            id: uuidv4(),
+            name: `Safe Corridor: ${item.place || "Itinerary Stop"} (${data.full_name})`,
+            risk_level: "low",
+            description: `Auto-generated safety geofence for tourist ${data.full_name} (ID: ${touristId}) scheduled for ${item.planned_date || startDate.toISOString().split("T")[0]}`,
+            polygon_geojson: JSON.stringify(geojson),
+            is_active: true,
+          });
+        } catch (err) {
+          console.warn("[ZONE] Auto-geofence generation skipped:", err);
+        }
+      }
+    }
+  }
 
   // Create blockchain block
   const block = await blockchain.createBlock(touristId, {

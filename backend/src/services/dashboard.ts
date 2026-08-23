@@ -8,9 +8,15 @@ function intervalDays(col: string, days: number) {
 // ── Overview ───────────────────────────────────────────────────
 
 export async function getOverviewStats() {
+  const [totalRegistered] = await db("tourists").count("id as count");
+
   const [touristCount] = await db("tourists")
     .where("trip_end", ">=", new Date())
     .where("trip_start", "<=", new Date())
+    .count("id as count");
+
+  const [upcomingCount] = await db("tourists")
+    .where("trip_start", ">", new Date())
     .count("id as count");
 
   const [alertCount] = await db("alerts")
@@ -25,12 +31,44 @@ export async function getOverviewStats() {
     .where("status", "active")
     .count("id as count");
 
+  const recentRegistered = await getRegisteredTouristsSummary(8);
+
   return {
+    total_registered: parseInt((totalRegistered as any)?.count || "0", 10),
     active_tourists: parseInt((touristCount as any)?.count || "0", 10),
+    upcoming_tourists: parseInt((upcomingCount as any)?.count || "0", 10),
     active_alerts: parseInt((alertCount as any)?.count || "0", 10),
     ids_issued_today: parseInt((todayIds as any)?.count || "0", 10),
     total_active_ids: parseInt((totalIds as any)?.count || "0", 10),
+    recent_tourists: recentRegistered,
   };
+}
+
+export async function getRegisteredTouristsSummary(limit = 10) {
+  return db("tourists as t")
+    .leftJoin("digital_ids as di", "t.id", "di.tourist_id")
+    .select(
+      "t.id",
+      "t.full_name",
+      "t.phone",
+      "t.email",
+      "t.id_type",
+      "t.trip_start",
+      "t.trip_end",
+      "t.itinerary",
+      "t.created_at",
+      "di.block_id",
+      "di.status as digital_id_status",
+      db.raw(`
+        CASE 
+          WHEN t.trip_start <= CURRENT_TIMESTAMP AND t.trip_end >= CURRENT_TIMESTAMP THEN 'active'
+          WHEN t.trip_start > CURRENT_TIMESTAMP THEN 'upcoming'
+          ELSE 'expired'
+        END as window_status
+      `)
+    )
+    .orderBy("t.created_at", "desc")
+    .limit(limit);
 }
 
 export async function getActiveTouristsWithLocation() {

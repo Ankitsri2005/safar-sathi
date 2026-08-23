@@ -20,12 +20,23 @@ interface TrackedTourist {
   trip_start: string;
   trip_end: string;
   itinerary: any;
+  block_id: string | null;
+  digital_id_status?: string;
+  window_status?: "active" | "upcoming" | "expired";
+  is_in_trip_window?: boolean;
   current_lat: number | null;
   current_lng: number | null;
   last_update: string | null;
   risk_level: string;
   anomaly_score: number;
   is_online: boolean;
+  geofences?: Array<{
+    id: string;
+    name: string;
+    risk_level: string;
+    description: string;
+    polygon_geojson: any;
+  }>;
 }
 
 interface LocationPing {
@@ -85,16 +96,19 @@ export default function TrackingPage() {
   const mapRef = useRef<any | null>(null);
   const markersRef = useRef<Record<string, any>>({});
   const routeLayerRef = useRef<any | null>(null);
+  const geofenceLayerRef = useRef<any | null>(null);
   const hasCenteredRef = useRef(false);
   
   const [tourists, setTourists] = useState<TrackedTourist[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTourist, setSelectedTourist] = useState<TrackedTourist | null>(null);
   const [selectedPings, setSelectedPings] = useState<LocationPing[]>([]);
+  const [filterWindow, setFilterWindow] = useState<"all" | "active" | "upcoming" | "expired">("all");
   const [filterRisk, setFilterRisk] = useState<string>("all");
   const [filterOnline, setFilterOnline] = useState<"all" | "online" | "offline">("all");
   const [livePositions, setLivePositions] = useState<Record<string, { lat: number; lng: number; timestamp: string }>>({});
   const [isSimulating, setIsSimulating] = useState(false);
+  const [copiedHash, setCopiedHash] = useState<string | null>(null);
   const simIntervalRef = useRef<any>(null);
 
   // Stop simulation on unmount
@@ -274,6 +288,9 @@ export default function TrackingPage() {
         const routeGroup = L.featureGroup().addTo(map);
         routeLayerRef.current = routeGroup;
 
+        const geofenceGroup = L.featureGroup().addTo(map);
+        geofenceLayerRef.current = geofenceGroup;
+
         setTimeout(() => {
           if (!isCancelled && map) {
             map.invalidateSize();
@@ -346,6 +363,7 @@ export default function TrackingPage() {
               <h4 style="font-weight: 700; font-size: 13px; margin: 0 0 4px 0;">${tourist.full_name}</h4>
               <p style="font-size: 11px; margin: 0 0 2px 0;">Risk: <span style="font-weight: 600; color: ${color};">${tourist.risk_level.toUpperCase()}</span></p>
               <p style="font-size: 10px; color: #64748b; margin: 0;">Phone: ${tourist.phone}</p>
+              ${tourist.block_id ? `<p style="font-size: 9px; font-family: monospace; color: #0284c7; margin-top: 4px;">Hash: ${tourist.block_id.slice(0, 8)}...</p>` : ''}
             </div>
           `);
 
@@ -353,9 +371,8 @@ export default function TrackingPage() {
             .addTo(map)
             .bindPopup(popup);
 
-          marker.on("click", (e: any) => {
-            setSelectedTourist(tourist);
-            fetchPings(tourist.id);
+          marker.on("click", () => {
+            selectTouristWithDetails(tourist);
           });
 
           markersRef.current[tourist.id] = marker;
@@ -367,32 +384,32 @@ export default function TrackingPage() {
 
       Object.keys(markersRef.current).forEach((id) => {
         if (!currentTouristsMap[id]) {
-          markersRef.current[id].remove();
+          map.removeLayer(markersRef.current[id]);
           delete markersRef.current[id];
         }
       });
-
-      // Fit map bounds once on load to show all active tourist locations
-      if (!hasCenteredRef.current && Object.keys(markersRef.current).length > 0) {
-        try {
-          const markerList = Object.values(markersRef.current);
-          const group = L.featureGroup(markerList);
-          map.fitBounds(group.getBounds(), { padding: [50, 50], maxZoom: 12 });
-          hasCenteredRef.current = true;
-        } catch {}
-      }
     });
   }, [filteredTourists, livePositions, selectedTourist]);
 
-  // 3. Center map on selected tourist
+  const selectTouristWithDetails = async (tourist: TrackedTourist) => {
+    setSelectedTourist(tourist);
+    fetchPings(tourist.id);
+    try {
+      const res = await api.get(`/tracking/tourists/${tourist.id}`);
+      setSelectedTourist((prev) => prev?.id === tourist.id ? { ...prev, ...res.data } : prev);
+    } catch {}
+  };
+
+  // 3. Center map on selection
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedTourist) return;
 
     const lat = livePositions[selectedTourist.id]?.lat ?? selectedTourist.current_lat;
     const lng = livePositions[selectedTourist.id]?.lng ?? selectedTourist.current_lng;
+
     if (lat != null && lng != null) {
-      map.setView([lat, lng], 11, {
+      map.flyTo([lat, lng], 13.5, {
         animate: true,
         duration: 1.5,
       });
@@ -408,38 +425,85 @@ export default function TrackingPage() {
     }
   }, [selectedTourist]);
 
-  // 4. Draw selected tourist's movement trail
+  // 4. Draw selected tourist's movement trail and Auto-Generated Geofences
   useEffect(() => {
     const map = mapRef.current;
     const routeGroup = routeLayerRef.current;
-    if (!map || !routeGroup) return;
+    const geofenceGroup = geofenceLayerRef.current;
+    if (!map || !routeGroup || !geofenceGroup) return;
 
     routeGroup.clearLayers();
+    geofenceGroup.clearLayers();
 
-    if (!selectedTourist || selectedPings.length === 0) return;
+    if (!selectedTourist) return;
 
     import("leaflet").then((L) => {
-      const sortedPings = [...selectedPings].sort(
-        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
+      // 4A. Draw Movement Pings Trail
+      if (selectedPings.length > 0) {
+        const sortedPings = [...selectedPings].sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+        const latlngs = sortedPings.map((p) => [p.lat, p.lng]);
 
-      const latlngs = sortedPings.map((p) => [p.lat, p.lng]);
+        L.polyline(latlngs as any, {
+          color: "#60a5fa",
+          weight: 8,
+          opacity: 0.3,
+        }).addTo(routeGroup);
 
-      // Glow line
-      L.polyline(latlngs as any, {
-        color: "#60a5fa",
-        weight: 8,
-        opacity: 0.3,
-      }).addTo(routeGroup);
+        L.polyline(latlngs as any, {
+          color: "#3b82f6",
+          weight: 4,
+          opacity: 0.8,
+        }).addTo(routeGroup);
+      }
 
-      // Main line
-      L.polyline(latlngs as any, {
-        color: "#3b82f6",
-        weight: 4,
-        opacity: 0.8,
-      }).addTo(routeGroup);
+      // 4B. Draw Auto-Generated Safe Geofences
+      if (selectedTourist.geofences && selectedTourist.geofences.length > 0) {
+        selectedTourist.geofences.forEach((geo) => {
+          try {
+            const rawGeo = typeof geo.polygon_geojson === "string" ? JSON.parse(geo.polygon_geojson) : geo.polygon_geojson;
+            if (rawGeo && rawGeo.coordinates && rawGeo.coordinates[0]) {
+              const polyCoords = rawGeo.coordinates[0].map((coord: number[]) => [coord[1], coord[0]]);
+              L.polygon(polyCoords, {
+                color: "#10b981",
+                fillColor: "#10b981",
+                fillOpacity: 0.15,
+                weight: 2,
+                dashArray: "5, 5",
+              })
+                .bindPopup(`<b>${geo.name}</b><br/><span style="font-size: 11px; color: #64748b;">${geo.description || "Safe Itinerary Geofence"}</span>`)
+                .addTo(geofenceGroup);
+            }
+          } catch (e) {
+            console.warn("Geofence parse error:", e);
+          }
+        });
+      } else if (Array.isArray(selectedTourist.itinerary)) {
+        // Fallback: draw circular safe zones around itinerary stops
+        selectedTourist.itinerary.forEach((stop: any) => {
+          if (stop.lat && stop.lng) {
+            L.circle([stop.lat, stop.lng], {
+              radius: 1200,
+              color: "#10b981",
+              fillColor: "#10b981",
+              fillOpacity: 0.15,
+              weight: 2,
+              dashArray: "5, 5",
+            })
+              .bindPopup(`<b>Safe Zone: ${stop.place || "Itinerary"}</b><br/><span style="font-size: 11px; color: #64748b;">Planned for ${stop.planned_date || "Trip"}</span>`)
+              .addTo(geofenceGroup);
+          }
+        });
+      }
     });
   }, [selectedPings, selectedTourist]);
+
+  const handleCopyHash = (hash: string) => {
+    navigator.clipboard.writeText(hash);
+    setCopiedHash(hash);
+    setTimeout(() => setCopiedHash(null), 2000);
+  };
 
   const formatTime = (ts: string | null) => {
     if (!ts) return "N/A";
@@ -460,11 +524,51 @@ export default function TrackingPage() {
               <Badge variant={activeSelectedTourist.is_online ? "success" : "default"} size="sm" pulse={activeSelectedTourist.is_online}>
                 {activeSelectedTourist.is_online ? "Online" : "Offline"}
               </Badge>
+              {activeSelectedTourist.window_status === "active" && (
+                <Badge variant="success" size="sm">In Window</Badge>
+              )}
             </div>
 
             <div>
               <h3 className="text-sm font-bold text-fg">{activeSelectedTourist.full_name}</h3>
               <p className="text-xs font-mono text-muted">{activeSelectedTourist.id}</p>
+            </div>
+
+            {/* Blockchain Hash ID Banner */}
+            {activeSelectedTourist.block_id && (
+              <div className="p-2.5 rounded-xl bg-primary/5 border border-primary/20 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-primary uppercase tracking-wider flex items-center gap-1">
+                    <Shield className="w-3 h-3" /> Blockchain Hash ID
+                  </span>
+                  <button
+                    onClick={() => handleCopyHash(activeSelectedTourist.block_id!)}
+                    className="text-[10px] font-medium text-primary hover:underline"
+                  >
+                    {copiedHash === activeSelectedTourist.block_id ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+                <p className="text-[11px] font-mono text-fg break-all select-all bg-white px-2 py-1 rounded border border-primary/10">
+                  {activeSelectedTourist.block_id}
+                </p>
+              </div>
+            )}
+
+            {/* Selected Trip Interval */}
+            <div className="p-2.5 rounded-xl bg-bg border border-border text-xs space-y-1">
+              <span className="text-[10px] font-semibold text-muted uppercase flex items-center gap-1">
+                <Calendar className="w-3 h-3" /> Monitoring Interval
+              </span>
+              <p className="font-medium text-fg">
+                {new Date(activeSelectedTourist.trip_start).toLocaleDateString()} &rarr; {new Date(activeSelectedTourist.trip_end).toLocaleDateString()}
+              </p>
+              <p className="text-[10px] text-muted">
+                {activeSelectedTourist.window_status === "active"
+                  ? "🟢 Currently within active tracking window"
+                  : activeSelectedTourist.window_status === "upcoming"
+                  ? "🟡 Scheduled upcoming trip"
+                  : "⚪ Trip completed / monitoring ended"}
+              </p>
             </div>
 
             <div className="p-3 rounded-xl border border-primary/20 bg-primary/5 space-y-2">
@@ -498,47 +602,28 @@ export default function TrackingPage() {
             <div className="p-3 rounded-xl bg-bg border border-border space-y-2">
               <h4 className="text-[10px] font-semibold text-muted uppercase">Current Location</h4>
               <div className="flex items-start gap-2">
-                <MapPin className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-fg">
-                    {activeSelectedTourist.current_lat != null && activeSelectedTourist.current_lng != null
-                      ? `${formatCoord(activeSelectedTourist.current_lat, 4)}, ${formatCoord(activeSelectedTourist.current_lng, 4)}`
-                      : "No coordinates recorded"}
+                <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <p className="font-mono font-medium text-fg">
+                    {formatCoord(activeSelectedTourist.current_lat, 4)}, {formatCoord(activeSelectedTourist.current_lng, 4)}
                   </p>
-                  <p className="text-xs text-muted">Last ping: {formatTime(activeSelectedTourist.last_update)}</p>
+                  <p className="text-muted text-[10px] mt-0.5">Last update: {formatTime(activeSelectedTourist.last_update)}</p>
                 </div>
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-bg border border-border space-y-2">
-              <h4 className="text-[10px] font-semibold text-muted uppercase">Trip</h4>
-              <div className="flex items-center gap-3 text-xs text-muted">
-                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />
-                  {new Date(activeSelectedTourist.trip_start).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                </span>
-                <ChevronRight className="w-3 h-3" />
-                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />
-                  {new Date(activeSelectedTourist.trip_end).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                </span>
-              </div>
-            </div>
-
-            <div className="p-3 rounded-xl bg-bg border border-border space-y-1.5">
-              <h4 className="text-[10px] font-semibold text-muted uppercase">Contact</h4>
-              <div className="flex items-center gap-2 text-xs text-muted"><Phone className="w-3 h-3 shrink-0" />{activeSelectedTourist.phone}</div>
-              <div className="flex items-center gap-2 text-xs text-muted"><Mail className="w-3 h-3 shrink-0" />{activeSelectedTourist.email}</div>
-            </div>
-
+            {/* Safe Geofences & Itinerary */}
             {activeSelectedTourist.itinerary && (
               <div className="p-3 rounded-xl bg-bg border border-border space-y-2">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-[10px] font-semibold text-muted uppercase">Planned Route</h4>
+                  <h4 className="text-[10px] font-semibold text-muted uppercase">Safe Geofence Corridor</h4>
+                  <Badge variant="success" size="sm">Geofenced</Badge>
                 </div>
-                <div className="space-y-1.5">
-                  {(Array.isArray(activeSelectedTourist.itinerary) ? activeSelectedTourist.itinerary : []).slice(0, 5).map((stop: any, i: number) => (
-                    <div key={i} className="flex items-center gap-2 text-xs">
-                      <div className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 text-[10px] font-bold">{i + 1}</div>
-                      <span className="font-medium text-fg">{stop.place || stop.name || JSON.stringify(stop)}</span>
+                <div className="space-y-1.5 text-xs">
+                  {(Array.isArray(activeSelectedTourist.itinerary) ? activeSelectedTourist.itinerary : []).map((stop: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2 p-1.5 rounded-lg bg-surface-light/10">
+                      <div className="w-5 h-5 rounded-full bg-success/10 text-success flex items-center justify-center shrink-0 text-[10px] font-bold">{i + 1}</div>
+                      <span className="font-medium text-fg truncate">{stop.place || stop.name || JSON.stringify(stop)}</span>
                     </div>
                   ))}
                 </div>
@@ -568,11 +653,32 @@ export default function TrackingPage() {
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-fg flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-primary" />
-                Active Tourists
+                Tracked Tourists
               </h2>
               <div className="flex items-center gap-2">
                 <Badge variant="primary" size="sm">{filteredTourists.length}</Badge>
                 <Button variant="ghost" size="sm" onClick={fetchTourists} icon={<RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />} />
+              </div>
+            </div>
+
+            {/* Trip Interval Window Filter Tabs */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-muted uppercase">Trip Window</span>
+              <div className="grid grid-cols-2 gap-1">
+                {(["all", "active", "upcoming", "expired"] as const).map((w) => (
+                  <button
+                    key={w}
+                    onClick={() => setFilterWindow(w)}
+                    className={cn(
+                      "px-2 py-1 rounded-lg text-[10px] font-medium transition-all text-center",
+                      filterWindow === w
+                        ? "bg-primary text-white shadow-sm"
+                        : "bg-surface-light/20 text-muted hover:bg-surface-light/30"
+                    )}
+                  >
+                    {w === "all" ? "All Trips" : w === "active" ? "🟢 In Window" : w === "upcoming" ? "🟡 Upcoming" : "⚪ Completed"}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -582,7 +688,7 @@ export default function TrackingPage() {
                   className={cn("px-2 py-1 rounded-lg text-[10px] font-medium transition-all",
                     filterRisk === f ? "bg-primary text-white" : "bg-surface-light/20 text-muted hover:bg-surface-light/30"
                   )}>
-                  {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
+                  {f === "all" ? "All Risk" : f.charAt(0).toUpperCase() + f.slice(1)}
                 </button>
               ))}
             </div>
@@ -608,10 +714,11 @@ export default function TrackingPage() {
               <div className="space-y-2">
                 {filteredTourists.map((tourist) => {
                   const isOnline = livePositions[tourist.id] ? true : tourist.is_online;
+                  const isWindowActive = tourist.window_status === "active";
                   return (
                     <button
                       key={tourist.id}
-                      onClick={() => { setSelectedTourist(tourist); fetchPings(tourist.id); }}
+                      onClick={() => selectTouristWithDetails(tourist)}
                       className="w-full text-left p-3 rounded-xl bg-bg border border-border hover:border-primary/30 hover:shadow-md transition-all group"
                     >
                       <div className="flex items-start justify-between">
@@ -620,11 +727,24 @@ export default function TrackingPage() {
                             <div className={cn("w-2.5 h-2.5 rounded-full", isOnline ? "bg-success animate-pulse" : "bg-gray-400")} />
                             <span className="text-xs font-semibold text-fg truncate">{tourist.full_name}</span>
                           </div>
-                          <p className="text-[10px] text-muted mt-0.5 ml-4.5 font-mono">{tourist.id.slice(0, 8)}...</p>
+                          {tourist.block_id && (
+                            <p className="text-[10px] text-primary/80 mt-0.5 ml-4.5 font-mono">
+                              #{tourist.block_id.slice(0, 8)}...
+                            </p>
+                          )}
                         </div>
-                        <Badge variant={tourist.risk_level === "low" ? "success" : tourist.risk_level === "medium" ? "warning" : "danger"} size="sm">
-                          {tourist.risk_level}
-                        </Badge>
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge variant={tourist.risk_level === "low" ? "success" : tourist.risk_level === "medium" ? "warning" : "danger"} size="sm">
+                            {tourist.risk_level}
+                          </Badge>
+                          {isWindowActive ? (
+                            <span className="text-[9px] font-bold text-success bg-success/10 px-1.5 py-0.5 rounded">In Window</span>
+                          ) : tourist.window_status === "upcoming" ? (
+                            <span className="text-[9px] text-warning bg-warning/10 px-1.5 py-0.5 rounded">Upcoming</span>
+                          ) : (
+                            <span className="text-[9px] text-muted bg-surface-light/20 px-1.5 py-0.5 rounded">Completed</span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-3 mt-2 ml-4 text-[10px] text-muted">
                         <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />

@@ -98,7 +98,13 @@ export default function DigitalIdsPage() {
                       {record.status}
                     </Badge>
                   </TableCell>
-                  <TableCell mono className="text-muted">{record.block_id.slice(0, 8)}...</TableCell>
+                  <TableCell mono className="text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className="bg-primary/5 text-primary-dark px-1.5 py-0.5 rounded border border-primary/20 text-[11px]">
+                        {record.block_id?.slice(0, 8)}...{record.block_id?.slice(-4)}
+                      </span>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
