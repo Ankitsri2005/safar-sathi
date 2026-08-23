@@ -29,11 +29,11 @@ const systemFeatures = [
 ];
 
 const milestones = [
-  { year: "2024", event: "National Smart Tourist Safety & Incident Response initiative conceived" },
-  { year: "2025", event: "Prototype developed with blockchain identity verification" },
-  { year: "2025", event: "Pilot launch in Sikkim & Goa tourist regions" },
-  { year: "2026", event: "Expansion to 36 states and union territories" },
-  { year: "2026", event: "Integration with national police and tourism databases" },
+  { year: "2026", event: "National Smart Tourist Safety & Incident Response initiative conceived" },
+  { year: "2026", event: "Prototype developed with blockchain identity verification" },
+  { year: "2026", event: "Pilot launch in Sikkim & Goa tourist regions" },
+  { year: "2027", event: "Expansion to 36 states and union territories" },
+  { year: "2028", event: "Integration with national police and tourism databases" },
 ];
 
 export default function AboutPage() {
