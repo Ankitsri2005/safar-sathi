@@ -221,12 +221,7 @@ export async function listDigitalIds(filters?: {
   const limit = filters?.limit || 20;
 
   let query = db(DIGITAL_ID_TABLE)
-    .join(TOURIST_TABLE, "digital_ids.tourist_id", "tourists.id")
-    .select(
-      "digital_ids.*",
-      "tourists.full_name as tourist_name",
-      "tourists.id_type"
-    );
+    .join(TOURIST_TABLE, "digital_ids.tourist_id", "tourists.id");
 
   if (filters?.status) {
     query = query.where("digital_ids.status", filters.status);
@@ -242,6 +237,11 @@ export async function listDigitalIds(filters?: {
   const total = parseInt((countResult as any)?.total || "0", 10);
 
   const data = await query
+    .select(
+      "digital_ids.*",
+      "tourists.full_name as tourist_name",
+      "tourists.id_type"
+    )
     .orderBy("digital_ids.issued_at", "desc")
     .offset((page - 1) * limit)
     .limit(limit);
