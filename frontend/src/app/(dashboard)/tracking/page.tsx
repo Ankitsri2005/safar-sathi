@@ -400,16 +400,17 @@ export default function TrackingPage() {
     } catch {}
   };
 
-  // 3. Center map on selection
+  // 3. Center map on selection (uses live pos -> current_lat -> first itinerary stop)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedTourist) return;
 
-    const lat = livePositions[selectedTourist.id]?.lat ?? selectedTourist.current_lat;
-    const lng = livePositions[selectedTourist.id]?.lng ?? selectedTourist.current_lng;
+    const firstStop = Array.isArray(selectedTourist.itinerary) && selectedTourist.itinerary[0];
+    const lat = livePositions[selectedTourist.id]?.lat ?? selectedTourist.current_lat ?? (firstStop?.lat ? Number(firstStop.lat) : null);
+    const lng = livePositions[selectedTourist.id]?.lng ?? selectedTourist.current_lng ?? (firstStop?.lng ? Number(firstStop.lng) : null);
 
     if (lat != null && lng != null) {
-      map.flyTo([lat, lng], 13.5, {
+      map.flyTo([lat, lng], 13, {
         animate: true,
         duration: 1.5,
       });
@@ -601,15 +602,27 @@ export default function TrackingPage() {
 
             <div className="p-3 rounded-xl bg-bg border border-border space-y-2">
               <h4 className="text-[10px] font-semibold text-muted uppercase">Current Location</h4>
-              <div className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                <div className="text-xs">
-                  <p className="font-mono font-medium text-fg">
-                    {formatCoord(activeSelectedTourist.current_lat, 4)}, {formatCoord(activeSelectedTourist.current_lng, 4)}
-                  </p>
-                  <p className="text-muted text-[10px] mt-0.5">Last update: {formatTime(activeSelectedTourist.last_update)}</p>
+              {activeSelectedTourist.current_lat != null && activeSelectedTourist.current_lng != null ? (
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-mono font-medium text-fg">
+                      {formatCoord(activeSelectedTourist.current_lat, 4)}, {formatCoord(activeSelectedTourist.current_lng, 4)}
+                    </p>
+                    <p className="text-muted text-[10px] mt-0.5">Last update: {formatTime(activeSelectedTourist.last_update)}</p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="text-xs space-y-1 bg-surface-light/10 p-2.5 rounded-lg border border-border">
+                  <div className="flex items-center gap-1.5 text-warning-dark font-medium">
+                    <Clock className="w-3.5 h-3.5 text-warning" />
+                    <span>GPS Inactive (Trip Starts {new Date(activeSelectedTourist.trip_start).toLocaleDateString()})</span>
+                  </div>
+                  <p className="text-[10px] text-muted">
+                    Privacy protection active. Real-time GPS coordinates will begin streaming once the trip interval arrives.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Safe Geofences & Itinerary */}
