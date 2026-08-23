@@ -122,7 +122,8 @@ httpServer.listen(config.port, () => {
   // Run AI analysis every 5 minutes via ai-service
   setInterval(async () => {
     try {
-      const AI_URL = process.env.AI_SERVICE_URL || "http://localhost:5001";
+      const rawAi = process.env.AI_SERVICE_URL || "http://localhost:5001";
+      const AI_URL = rawAi.startsWith("http") ? rawAi : `http://${rawAi}:5001`;
       await fetch(`${AI_URL}/api/analyze/batch`, { method: "POST" });
     } catch (err) {
       console.error("AI analysis error:", err);

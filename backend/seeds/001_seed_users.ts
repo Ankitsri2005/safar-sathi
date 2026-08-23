@@ -2,51 +2,49 @@ import { Knex } from "knex";
 import bcrypt from "bcryptjs";
 
 export async function seed(knex: Knex): Promise<void> {
-  // Clean tables
-  await knex("efirs").del();
-  await knex("location_pings").del();
-  await knex("alerts").del();
-  await knex("zones").del();
-  await knex("blockchain_ledger").del();
-  await knex("digital_ids").del();
-  await knex("tourists").del();
-  await knex("users").del();
+  const users = [
+    {
+      username: "admin",
+      password: "admin123",
+      full_name: "System Admin",
+      role: "admin",
+      jurisdiction: "National",
+      is_active: true,
+    },
+    {
+      username: "officer1",
+      password: "police123",
+      full_name: "Inspector Rajesh Kumar",
+      role: "police",
+      jurisdiction: "Sikkim",
+      is_active: true,
+    },
+    {
+      username: "tourism1",
+      password: "tourism123",
+      full_name: "Tourism Officer Priya Sharma",
+      role: "tourism_dept",
+      jurisdiction: "Sikkim",
+      is_active: true,
+    },
+  ];
 
-  // Seed admin user
-  const adminPassword = await bcrypt.hash("admin123", 12);
-  await knex("users").insert({
-    username: "admin",
-    password_hash: adminPassword,
-    full_name: "System Admin",
-    role: "admin",
-    jurisdiction: "National",
-    is_active: true,
-  });
-
-  // Seed police officer
-  const policePassword = await bcrypt.hash("police123", 12);
-  await knex("users").insert({
-    username: "officer1",
-    password_hash: policePassword,
-    full_name: "Inspector Rajesh Kumar",
-    role: "police",
-    jurisdiction: "Sikkim",
-    is_active: true,
-  });
-
-  // Seed tourism dept staff
-  const tourismPassword = await bcrypt.hash("tourism123", 12);
-  await knex("users").insert({
-    username: "tourism1",
-    password_hash: tourismPassword,
-    full_name: "Tourism Officer Priya Sharma",
-    role: "tourism_dept",
-    jurisdiction: "Sikkim",
-    is_active: true,
-  });
-
-  console.log("Seed data inserted:");
-  console.log("  admin / admin123");
-  console.log("  officer1 / police123");
-  console.log("  tourism1 / tourism123");
+  for (const u of users) {
+    const existing = await knex("users").where({ username: u.username }).first();
+    if (!existing) {
+      const password_hash = await bcrypt.hash(u.password, 12);
+      await knex("users").insert({
+        username: u.username,
+        password_hash,
+        full_name: u.full_name,
+        role: u.role,
+        jurisdiction: u.jurisdiction,
+        is_active: u.is_active,
+      });
+      console.log(`Seeded user: ${u.username}`);
+    } else {
+      console.log(`User already exists: ${u.username}`);
+    }
+  }
 }
+

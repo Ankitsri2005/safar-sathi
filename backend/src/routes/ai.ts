@@ -1,7 +1,10 @@
 import { Router, Request, Response } from "express";
 import { authenticate } from "../middleware/auth";
 
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5001";
+const rawAiUrl = process.env.AI_SERVICE_URL || "http://localhost:5001";
+const AI_SERVICE_URL = rawAiUrl.startsWith("http")
+  ? rawAiUrl
+  : `http://${rawAiUrl}:5001`;
 
 const router = Router();
 router.use(authenticate);
