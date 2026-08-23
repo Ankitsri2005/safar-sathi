@@ -276,7 +276,7 @@ export default function MyTrackingPage() {
                 {[
                   { label: "Ankit kr Srivastava (Hash ID)", id: "79eb79ae-15f8-473c-af7b-5985039f5e96" },
                   { label: "Rahul Sharma (Hash ID)", id: "61012c47-4821-4ba5-bc9e-c59976bcf2e3" },
-                  { label: "SIH Demo Tourist (Aadhaar)", id: "DEMO-SIH-2024" },
+                  { label: "Verified Demo Tourist (Aadhaar)", id: "DEMO-TOURIST-2026" },
                 ].map((item) => (
                   <button
                     key={item.id}

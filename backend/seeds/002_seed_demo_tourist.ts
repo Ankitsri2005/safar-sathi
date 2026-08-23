@@ -7,7 +7,7 @@ import crypto from "crypto";
  * always has an active tourist to display during presentations.
  */
 export async function seed(knex: Knex): Promise<void> {
-  const DEMO_ID_NUMBER = "DEMO-SIH-2024";
+  const DEMO_ID_NUMBER = "DEMO-TOURIST-2026";
 
   // Check if already seeded
   const existing = await knex("tourists").where({ id_number: DEMO_ID_NUMBER }).first();
@@ -40,12 +40,12 @@ export async function seed(knex: Knex): Promise<void> {
 
   await knex("tourists").insert({
     id: touristId,
-    full_name: "SIH Demo Tourist",
+    full_name: "Verified Demo Tourist",
     id_type: "aadhaar",
     id_number: DEMO_ID_NUMBER,
     phone: "9999999999",
-    email: "demo@sih2024.gov.in",
-    emergency_contact_name: "SIH Control Room",
+    email: "demo@safarsathi.gov.in",
+    emergency_contact_name: "Tourism Control Room",
     emergency_contact_phone: "9999999998",
     trip_start: tripStart,
     trip_end: tripEnd,
@@ -102,13 +102,13 @@ export async function seed(knex: Knex): Promise<void> {
     };
     await knex("zones").insert({
       id: uuidv4(),
-      name: `Safe Corridor: ${stop.place} (SIH Demo Tourist)`,
+      name: `Safe Corridor: ${stop.place} (Verified Tourist)`,
       risk_level: "low",
-      description: `Demo geofence for SIH judges presentation — ${stop.place}`,
+      description: `Safety geofence corridor — ${stop.place}`,
       polygon_geojson: JSON.stringify(polygon),
       is_active: true,
     }).catch(() => {});
   }
 
-  console.log("Demo tourist seeded successfully for SIH presentation:", touristId);
+  console.log("Demo tourist seeded successfully:", touristId);
 }

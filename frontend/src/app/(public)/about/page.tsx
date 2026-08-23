@@ -29,7 +29,7 @@ const systemFeatures = [
 ];
 
 const milestones = [
-  { year: "2024", event: "System conceived under Smart India Hackathon initiative" },
+  { year: "2024", event: "National Smart Tourist Safety & Incident Response initiative conceived" },
   { year: "2025", event: "Prototype developed with blockchain identity verification" },
   { year: "2025", event: "Pilot launch in Sikkim & Goa tourist regions" },
   { year: "2026", event: "Expansion to 36 states and union territories" },
