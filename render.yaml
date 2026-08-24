@@ -92,7 +92,7 @@ services:
           name: safar-ai-service
           property: host
       - key: CORS_ORIGIN
-        value: "*"
+        value: "https://safar-frontend.onrender.com"
 
   # 3. Next.js Frontend
   - type: web
@@ -103,6 +103,10 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm run start
     envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: "https://safar-backend-api.onrender.com/api"
+      - key: NEXT_PUBLIC_APP_NAME
+        value: "Smart Tourist Safety System"
       - key: INTERNAL_BACKEND_HOST
         fromService:
           type: web

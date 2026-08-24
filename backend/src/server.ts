@@ -57,8 +57,33 @@ app.use(helmet({
   },
   referrerPolicy: { policy: "strict-origin-when-cross-origin" },
 }));
+const CORS_ORIGIN = config.cors.origin;
+
+// Build list of allowed origins — supports comma-separated list, wildcard, or single URL
+const getAllowedOrigins = (): string[] | string => {
+  if (CORS_ORIGIN === "*") return "*";
+  return CORS_ORIGIN.split(",").map((o) => o.trim()).filter(Boolean);
+};
+
+const allowedOrigins = getAllowedOrigins();
+
 app.use(cors({
-  origin: config.cors.origin,
+  origin: (origin, callback) => {
+    // Allow server-to-server (no origin) and Render internal calls
+    if (!origin) return callback(null, true);
+    if (allowedOrigins === "*") return callback(null, true);
+    const list = allowedOrigins as string[];
+    // Always allow localhost variants for development
+    const localhostPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+    if (localhostPattern.test(origin) || list.includes(origin)) {
+      return callback(null, true);
+    }
+    // Allow any onrender.com subdomain (for Render preview deployments)
+    if (origin.endsWith(".onrender.com")) {
+      return callback(null, true);
+    }
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
   credentials: true,
 }));
 app.use(morgan("combined")); // "combined" logs more details than "dev" for security auditing
