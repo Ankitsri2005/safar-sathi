@@ -21,7 +21,17 @@ export async function seed(knex: Knex): Promise<void> {
 
     await knex("tourists")
       .where({ id: existing.id })
-      .update({ trip_start: tripStart, trip_end: tripEnd, current_lat: 27.3314, current_lng: 88.6138, updated_at: new Date() });
+      .update({ trip_start: tripStart, trip_end: tripEnd, updated_at: new Date() });
+
+    // Update or insert latest location ping for the demo tourist
+    await knex("location_pings").insert({
+      id: uuidv4(),
+      tourist_id: existing.id,
+      lat: 27.3314,
+      lng: 88.6138,
+      source: "phone",
+      timestamp: new Date(),
+    }).catch(() => {});
 
     console.log("Demo tourist trip dates refreshed:", DEMO_ID_NUMBER);
     return;

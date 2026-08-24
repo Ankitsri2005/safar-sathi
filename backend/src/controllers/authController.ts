@@ -41,7 +41,14 @@ export async function login(req: Request, res: Response) {
 
 export async function register(req: Request, res: Response) {
   try {
-    const user = await authService.createUser(req.body);
+    const { username, password, full_name, role, jurisdiction } = req.body;
+    const user = await authService.createUser({
+      username: username?.trim(),
+      password,
+      full_name: full_name?.trim(),
+      role: role || "police",
+      jurisdiction: jurisdiction?.trim() || "National",
+    });
     const token = authService.generateToken(user);
     res.status(201).json({
       token,
@@ -50,13 +57,14 @@ export async function register(req: Request, res: Response) {
         username: user.username,
         full_name: user.full_name,
         role: user.role,
+        jurisdiction: user.jurisdiction,
       },
     });
   } catch (error: any) {
     if (error.code === "23505") {
       return res.status(409).json({ error: "Username already exists" });
     }
-    res.status(500).json({ error: "Registration failed" });
+    res.status(500).json({ error: error?.message || "Registration failed" });
   }
 }
 

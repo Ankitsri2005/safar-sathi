@@ -20,15 +20,27 @@ export async function createUser(data: {
 }): Promise<User> {
   const id = uuidv4();
   const password_hash = await bcrypt.hash(data.password, 12);
+  const cleanUsername = data.username.trim();
+  const cleanFullName = data.full_name.trim();
+  const cleanJurisdiction = data.jurisdiction?.trim() || "National";
+
   const [user] = await db(TABLE)
-    .insert({ id, ...data, password_hash, is_active: true })
+    .insert({
+      id,
+      username: cleanUsername,
+      password_hash,
+      full_name: cleanFullName,
+      role: data.role,
+      jurisdiction: cleanJurisdiction,
+      is_active: true,
+    })
     .returning("*");
 
   await logAudit({
     event_type: "user_creation",
     resource_type: "user",
     resource_id: id,
-    details: { username: data.username, role: data.role, full_name: data.full_name },
+    details: { username: cleanUsername, role: data.role, full_name: cleanFullName },
   });
 
   return user;
@@ -38,7 +50,11 @@ export async function createUser(data: {
  * Find user by username.
  */
 export async function findByUsername(username: string): Promise<User | null> {
-  const user = await db(TABLE).where({ username }).first();
+  const cleanUsername = username?.trim();
+  if (!cleanUsername) return null;
+  const user = await db(TABLE)
+    .whereRaw("LOWER(username) = LOWER(?)", [cleanUsername])
+    .first();
   return user || null;
 }
 

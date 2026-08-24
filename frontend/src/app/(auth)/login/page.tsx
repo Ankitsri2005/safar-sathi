@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/Button";
 import { ROLE_LABELS, UserRole } from "@/types";
@@ -18,6 +19,9 @@ import {
   ShieldCheck,
   MapPin,
   X,
+  UserPlus,
+  LogIn,
+  BadgeCheck,
 } from "lucide-react";
 
 function ForgotPasswordModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -81,7 +85,7 @@ function ForgotPasswordModal({ open, onClose }: { open: boolean; onClose: () => 
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
                 <p className="text-xs text-warning-dark">
-                  This is a placeholder. Password reset functionality will be available when the backend is connected.
+                  Please contact your department system administrator or enter your registered official email.
                 </p>
               </div>
             </div>
@@ -97,14 +101,18 @@ function ForgotPasswordModal({ open, onClose }: { open: boolean; onClose: () => 
 }
 
 export default function LoginPage() {
+  const [tab, setTab] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [role, setRole] = useState<UserRole>(UserRole.POLICE);
+  const [jurisdiction, setJurisdiction] = useState("Sikkim");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
-  const [loginStatus, setLoginStatus] = useState<"idle" | "authenticating" | "success">("idle");
-  const { login, isAuthenticated } = useAuth();
+  const [actionStatus, setActionStatus] = useState<"idle" | "processing" | "success">("idle");
+  const { login, register, isAuthenticated } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -117,22 +125,60 @@ export default function LoginPage() {
     return null;
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    setLoginStatus("authenticating");
+    setActionStatus("processing");
 
     try {
       await login(username, password);
-      setLoginStatus("success");
+      setActionStatus("success");
       setTimeout(() => router.push("/dashboard"), 600);
     } catch (err: any) {
-      setLoginStatus("idle");
+      setActionStatus("idle");
       setError(err.response?.data?.error || "Login failed. Please check your credentials.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setActionStatus("processing");
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long.");
+      setLoading(false);
+      setActionStatus("idle");
+      return;
+    }
+
+    try {
+      await register({
+        username: username.trim(),
+        password,
+        full_name: fullName.trim(),
+        role,
+        jurisdiction: jurisdiction.trim() || "National",
+      });
+      setActionStatus("success");
+      setTimeout(() => router.push("/dashboard"), 600);
+    } catch (err: any) {
+      setActionStatus("idle");
+      setError(err.response?.data?.error || "Registration failed. Please check the provided information.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fillDemo = (u: string, p: string) => {
+    setTab("login");
+    setUsername(u);
+    setPassword(p);
+    setError("");
   };
 
   return (
@@ -158,18 +204,18 @@ export default function LoginPage() {
               <Shield className="w-8 h-8 text-white" />
             </div>
             <h2 className="text-3xl font-bold text-white mb-4">Smart Tourist Safety</h2>
-            <p className="text-white/50 text-lg leading-relaxed max-w-md">
-              Access the command center for real-time tourist monitoring,
-              incident response, and digital identity management.
+            <p className="text-white/70 text-lg leading-relaxed max-w-md">
+              Access the authority command center for real-time tourist monitoring,
+              geofence alert response, and digital identity management.
             </p>
             <div className="mt-12 space-y-4">
               {[
-                "Real-time tourist location tracking",
-                "AI-powered anomaly detection",
-                "Blockchain-secured digital identities",
-                "Instant emergency response coordination",
+                "Real-time tourist location tracking & heatmaps",
+                "AI-powered anomaly & deviation detection",
+                "Blockchain-secured digital tourist identities",
+                "Instant emergency & E-FIR coordination",
               ].map((item, i) => (
-                <div key={i} className="flex items-center gap-3 text-white/40 text-sm">
+                <div key={i} className="flex items-center gap-3 text-white/60 text-sm">
                   <div className="w-1.5 h-1.5 bg-accent rounded-full" />
                   {item}
                 </div>
@@ -178,18 +224,17 @@ export default function LoginPage() {
 
             {/* Role Legend */}
             <div className="mt-10 p-4 rounded-xl bg-white/5 border border-white/10">
-              <p className="text-xs text-white/40 font-medium mb-3 uppercase tracking-wider">Access Roles</p>
-              <div className="space-y-2">
+              <p className="text-xs text-white/50 font-semibold mb-3 uppercase tracking-wider">Authorized Roles</p>
+              <div className="space-y-2.5">
                 {[
                   { role: UserRole.ADMIN, desc: "Manage users, zones, and system settings" },
-                  { role: UserRole.POLICE, desc: "View and respond to alerts, file E-FIRs" },
-                  { role: UserRole.TOURISM, desc: "View tourists, risk info, and analytics" },
-                  { role: UserRole.VERIFICATION, desc: "Verify digital identities" },
-                ].map(({ role, desc }) => (
-                  <div key={role} className="flex items-center gap-2">
-                    <ShieldCheck className="w-3.5 h-3.5 text-accent" />
-                    <span className="text-xs text-white/70 font-medium">{ROLE_LABELS[role]}</span>
-                    <span className="text-[10px] text-white/30">— {desc}</span>
+                  { role: UserRole.POLICE, desc: "Monitor live alerts, respond to incidents, file E-FIRs" },
+                  { role: UserRole.TOURISM, desc: "View tourists, safety statistics & analytics" },
+                ].map(({ role: r, desc }) => (
+                  <div key={r} className="flex items-center gap-2.5">
+                    <ShieldCheck className="w-4 h-4 text-accent shrink-0" />
+                    <span className="text-xs text-white/90 font-medium">{ROLE_LABELS[r]}</span>
+                    <span className="text-[11px] text-white/40">— {desc}</span>
                   </div>
                 ))}
               </div>
@@ -198,116 +243,275 @@ export default function LoginPage() {
         </div>
 
         {/* Right Form Panel */}
-        <div className="flex-1 flex items-center justify-center p-6 bg-bg">
-          <div className="w-full max-w-md animate-fade-in-up">
+        <div className="flex-1 flex items-center justify-center p-6 bg-bg overflow-y-auto">
+          <div className="w-full max-w-md animate-fade-in-up my-auto py-8">
             {/* Mobile Logo */}
-            <div className="lg:hidden text-center mb-8">
-              <div className="w-12 h-12 bg-gradient-to-br from-primary to-primary-dark rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+            <div className="lg:hidden text-center mb-6">
+              <div className="w-12 h-12 bg-gradient-to-br from-primary to-primary-dark rounded-xl flex items-center justify-center mx-auto mb-2 shadow-lg">
                 <Shield className="w-6 h-6 text-white" />
               </div>
             </div>
 
-            <div className="text-center mb-8">
-              <h1 className="text-2xl font-bold text-fg">Authority Login</h1>
+            <div className="text-center mb-6">
+              <h1 className="text-2xl font-bold text-fg">Authority Portal</h1>
               <p className="text-muted text-sm mt-1">
                 Police / Tourism / Verification Department Access
               </p>
             </div>
 
-            {/* Login Status */}
-            {loginStatus === "success" && (
+            {/* Tab Switcher */}
+            <div className="flex p-1 bg-surface-light/10 border border-border rounded-xl mb-6">
+              <button
+                type="button"
+                onClick={() => { setTab("login"); setError(""); }}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-lg transition-all ${
+                  tab === "login"
+                    ? "bg-primary text-white shadow"
+                    : "text-muted hover:text-fg"
+                }`}
+              >
+                <LogIn className="w-4 h-4" />
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => { setTab("register"); setError(""); }}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-lg transition-all ${
+                  tab === "register"
+                    ? "bg-primary text-white shadow"
+                    : "text-muted hover:text-fg"
+                }`}
+              >
+                <UserPlus className="w-4 h-4" />
+                Register Authority
+              </button>
+            </div>
+
+            {/* Status Notifications */}
+            {actionStatus === "success" && (
               <div className="mb-4 p-3 rounded-xl bg-success-50 border border-success-200 text-success text-sm flex items-center gap-2 animate-fade-in">
                 <CheckCircle className="w-4 h-4 shrink-0" />
-                <span className="font-medium">Login successful! Redirecting...</span>
+                <span className="font-medium">
+                  {tab === "login" ? "Login successful! Redirecting..." : "Registration successful! Redirecting to dashboard..."}
+                </span>
               </div>
             )}
 
-            {loginStatus === "authenticating" && (
+            {actionStatus === "processing" && (
               <div className="mb-4 p-3 rounded-xl bg-primary-50 border border-primary-200 text-primary text-sm flex items-center gap-2 animate-fade-in">
                 <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
-                <span className="font-medium">Authenticating...</span>
+                <span className="font-medium">Authenticating credentials...</span>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <div className="bg-danger-50 border border-danger-200 text-danger p-3 rounded-xl text-sm animate-shake flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  {error}
-                </div>
-              )}
-
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-fg">Username or Email</label>
-                <div className="relative">
-                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-                  <input
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full border border-border rounded-xl pl-10 pr-4 py-3 text-sm bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all placeholder:text-muted/40"
-                    placeholder="Enter username or email"
-                    required
-                  />
-                </div>
+            {error && (
+              <div className="mb-4 bg-danger-50 border border-danger-200 text-danger p-3 rounded-xl text-sm animate-shake flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {error}
               </div>
+            )}
 
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-fg">Password</label>
-                  <button
-                    type="button"
-                    onClick={() => setShowForgot(true)}
-                    className="text-xs text-primary hover:text-primary-dark transition-colors font-medium"
-                  >
-                    Forgot password?
-                  </button>
+            {/* LOGIN FORM */}
+            {tab === "login" ? (
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-fg">Username or ID</label>
+                  <div className="relative">
+                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                    <input
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="w-full border border-border rounded-xl pl-10 pr-4 py-3 text-sm bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all placeholder:text-muted/40"
+                      placeholder="e.g. admin, police1, tourism1"
+                      required
+                    />
+                  </div>
                 </div>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full border border-border rounded-xl pl-10 pr-11 py-3 text-sm bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all placeholder:text-muted/40"
-                    placeholder="Enter your password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-fg">Password</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowForgot(true)}
+                      className="text-xs text-primary hover:text-primary-dark transition-colors font-medium"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full border border-border rounded-xl pl-10 pr-11 py-3 text-sm bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all placeholder:text-muted/40"
+                      placeholder="Enter your password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              <Button
-                type="submit"
-                variant="primary"
-                size="lg"
-                loading={loading}
-                disabled={loginStatus === "success"}
-                className="w-full mt-6"
-                iconRight={loginStatus === "idle" ? <ArrowRight className="w-4 h-4" /> : undefined}
-              >
-                {loginStatus === "success" ? "Authenticated" : "Sign In"}
-              </Button>
-            </form>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  loading={loading}
+                  disabled={actionStatus === "success"}
+                  className="w-full mt-6"
+                  iconRight={actionStatus === "idle" ? <ArrowRight className="w-4 h-4" /> : undefined}
+                >
+                  {actionStatus === "success" ? "Authenticated" : "Sign In to Dashboard"}
+                </Button>
+              </form>
+            ) : (
+              /* REGISTRATION FORM */
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-fg">Full Name & Title</label>
+                  <div className="relative">
+                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                    <input
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full border border-border rounded-xl pl-10 pr-4 py-3 text-sm bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all placeholder:text-muted/40"
+                      placeholder="e.g. Officer Karma Bhutia"
+                      required
+                    />
+                  </div>
+                </div>
 
-            {/* Demo Credentials */}
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-fg">Official Username</label>
+                  <div className="relative">
+                    <BadgeCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                    <input
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="w-full border border-border rounded-xl pl-10 pr-4 py-3 text-sm bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all placeholder:text-muted/40"
+                      placeholder="e.g. police_east, gangtok_desk"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="block text-sm font-medium text-fg">Department / Role</label>
+                    <div className="relative">
+                      <select
+                        value={role}
+                        onChange={(e) => setRole(e.target.value as UserRole)}
+                        className="w-full border border-border rounded-xl px-3 py-3 text-sm bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all"
+                      >
+                        <option value={UserRole.POLICE}>Police Officer</option>
+                        <option value={UserRole.TOURISM}>Tourism Dept</option>
+                        <option value={UserRole.ADMIN}>Administrator</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-sm font-medium text-fg">Jurisdiction</label>
+                    <div className="relative">
+                      <input
+                        value={jurisdiction}
+                        onChange={(e) => setJurisdiction(e.target.value)}
+                        className="w-full border border-border rounded-xl px-3 py-3 text-sm bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all placeholder:text-muted/40"
+                        placeholder="e.g. Sikkim, Gangtok"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-fg">Set Password (min 6 chars)</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full border border-border rounded-xl pl-10 pr-11 py-3 text-sm bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all placeholder:text-muted/40"
+                      placeholder="Create secure password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  loading={loading}
+                  disabled={actionStatus === "success"}
+                  className="w-full mt-6"
+                  iconRight={actionStatus === "idle" ? <ArrowRight className="w-4 h-4" /> : undefined}
+                >
+                  {actionStatus === "success" ? "Registered" : "Complete Registration"}
+                </Button>
+              </form>
+            )}
+
+            {/* Quick Demo Credentials Fillers */}
             <div className="mt-6 p-4 rounded-xl bg-surface-light/5 border border-border">
-              <p className="text-xs text-muted font-medium mb-2">Demo Credentials</p>
-              <div className="space-y-1.5 text-xs text-muted/70">
-                <p><span className="font-mono text-fg">admin</span> / <span className="font-mono text-fg">admin123</span> — Administrator</p>
-                <p><span className="font-mono text-fg">police1</span> / <span className="font-mono text-fg">police123</span> — Police Officer</p>
-                <p><span className="font-mono text-fg">tourism1</span> / <span className="font-mono text-fg">tourism123</span> — Tourism Officer</p>
+              <p className="text-xs text-muted font-medium mb-2.5">Quick Demo Credentials (Click to Fill):</p>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => fillDemo("admin", "admin123")}
+                  className="px-2 py-1.5 rounded-lg border border-border/70 hover:border-primary bg-white text-left transition-colors"
+                >
+                  <p className="text-[11px] font-bold text-fg">Admin</p>
+                  <p className="text-[10px] text-muted font-mono">admin / 123</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fillDemo("police1", "police123")}
+                  className="px-2 py-1.5 rounded-lg border border-border/70 hover:border-primary bg-white text-left transition-colors"
+                >
+                  <p className="text-[11px] font-bold text-fg">Police</p>
+                  <p className="text-[10px] text-muted font-mono">police1 / 123</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fillDemo("tourism1", "tourism123")}
+                  className="px-2 py-1.5 rounded-lg border border-border/70 hover:border-primary bg-white text-left transition-colors"
+                >
+                  <p className="text-[11px] font-bold text-fg">Tourism</p>
+                  <p className="text-[10px] text-muted font-mono">tourism1 / 123</p>
+                </button>
               </div>
             </div>
 
-            <p className="text-center text-xs text-muted mt-6 flex items-center justify-center gap-1.5">
-              <Shield className="w-3 h-3" />
-              Protected by government-grade encryption
+            {/* Switch to Tourist Registration */}
+            <div className="mt-6 text-center">
+              <p className="text-xs text-muted">
+                Are you a traveler looking for a Digital Tourist ID?{" "}
+                <Link href="/register" className="text-primary font-semibold hover:underline">
+                  Register as Tourist
+                </Link>
+              </p>
+            </div>
+
+            <p className="text-center text-xs text-muted mt-4 flex items-center justify-center gap-1.5">
+              <Shield className="w-3 h-3 text-primary" />
+              Protected by government-grade encryption & audit logging
             </p>
           </div>
         </div>

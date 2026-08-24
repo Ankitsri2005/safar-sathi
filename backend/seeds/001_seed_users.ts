@@ -12,6 +12,14 @@ export async function seed(knex: Knex): Promise<void> {
       is_active: true,
     },
     {
+      username: "police1",
+      password: "police123",
+      full_name: "Sub-Inspector Tashi Namgyal",
+      role: "police",
+      jurisdiction: "East Sikkim",
+      is_active: true,
+    },
+    {
       username: "officer1",
       password: "police123",
       full_name: "Inspector Rajesh Kumar",

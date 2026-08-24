@@ -23,7 +23,11 @@ export async function createUser(data: {
 }
 
 export async function findByUsername(username: string): Promise<User | null> {
-  const user = await db(TABLE).where({ username }).first();
+  const cleanUsername = username?.trim();
+  if (!cleanUsername) return null;
+  const user = await db(TABLE)
+    .whereRaw("LOWER(username) = LOWER(?)", [cleanUsername])
+    .first();
   return user || null;
 }
 
