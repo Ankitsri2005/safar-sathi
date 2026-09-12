@@ -332,3 +332,27 @@ export async function getComprehensiveAnalytics(days: number = 30) {
     most_visited_zones: mostVisited,
   };
 }
+
+// ── Recent Tourist Registrations ───────────────────────────────
+
+export async function getRecentTourists(limit: number = 8) {
+  const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
+  const result = await db.raw(`
+    SELECT
+      t.id,
+      t.full_name,
+      t.phone,
+      t.id_type,
+      t.trip_start,
+      t.trip_end,
+      t.created_at,
+      di.id   AS digital_id,
+      di.status AS id_status
+    FROM tourists t
+    LEFT JOIN digital_ids di
+      ON di.tourist_id = t.id
+    ORDER BY t.created_at DESC
+    LIMIT ${safeLimit}
+  `);
+  return result.rows || (Array.isArray(result) ? result : []);
+}

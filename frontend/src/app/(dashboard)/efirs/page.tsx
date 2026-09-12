@@ -76,7 +76,10 @@ export default function EfirsPage() {
       setGenDescription("");
       fetchEfirs();
       setSelectedEfir(r.data.efir);
-    } catch {}
+    } catch (err: any) {
+      console.error("Failed to generate E-FIR:", err?.response?.data || err?.message);
+      alert(err?.response?.data?.error || err?.response?.data?.details || "Failed to generate E-FIR");
+    }
     setGenerating(false);
   };
 
@@ -97,6 +100,24 @@ export default function EfirsPage() {
       fetchEfirs();
       setSelectedEfir(null);
     } catch {}
+  };
+
+  const handleDownloadPdf = async (efirId: string, efirNumber: string) => {
+    try {
+      const response = await api.get(`/efirs/${efirId}/download`, {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `${efirNumber || efirId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to download PDF", err);
+    }
   };
 
   const totalPages = Math.ceil(total / limit);
@@ -194,15 +215,13 @@ export default function EfirsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          {efir.pdf_url && (
-                            <a
-                              href={`/api/efirs/${efir.id}/download`}
-                              className="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-colors"
-                              title="Download PDF"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                            </a>
-                          )}
+                          <button
+                            onClick={() => handleDownloadPdf(efir.id, efir.efir_number)}
+                            className="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-colors"
+                            title="Download PDF"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             onClick={() => fetchEfirDetail(efir.id)}
                             className="p-1.5 rounded-lg hover:bg-white/5 text-muted transition-colors"
@@ -237,6 +256,7 @@ export default function EfirsPage() {
               onClose={() => setSelectedEfir(null)}
               onStatusUpdate={handleStatusUpdate}
               onDelete={handleDelete}
+              onDownload={() => handleDownloadPdf(selectedEfir.id, selectedEfir.efir_number)}
             />
           </div>
         )}
@@ -299,14 +319,14 @@ function EfirDetailPanel({
   onClose,
   onStatusUpdate,
   onDelete,
+  onDownload,
 }: {
   efir: Efir;
   onClose: () => void;
   onStatusUpdate: (id: string, status: EfirStatus) => void;
   onDelete: (id: string) => void;
+  onDownload: () => void;
 }) {
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") || "http://localhost:5000";
-
   return (
     <div className="bg-surface rounded-2xl border border-border shadow-lg overflow-hidden animate-fade-in">
       {/* Header */}
@@ -376,17 +396,9 @@ function EfirDetailPanel({
 
       {/* Actions */}
       <div className="p-4 border-t border-border flex items-center gap-2 flex-wrap">
-        {efir.pdf_url && (
-          <a
-            href={`${API_BASE}${efir.pdf_url}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Button variant="primary" size="sm" icon={<Download className="w-3.5 h-3.5" />}>
-              Download PDF
-            </Button>
-          </a>
-        )}
+        <Button variant="primary" size="sm" onClick={onDownload} icon={<Download className="w-3.5 h-3.5" />}>
+          Download PDF
+        </Button>
         {efir.status === EfirStatus.GENERATED && (
           <Button variant="accent" size="sm" onClick={() => onStatusUpdate(efir.id, EfirStatus.FILED)} icon={<CheckCircle className="w-3.5 h-3.5" />}>
             Mark Filed

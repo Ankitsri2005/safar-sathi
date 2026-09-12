@@ -130,8 +130,10 @@ export default function TrackingPage() {
     setIsSimulating(true);
     
     // Initial coords: center around Gangtok or current coords if available
-    let currentLat = livePositions[selectedTourist.id]?.lat ?? selectedTourist.current_lat ?? 27.3314;
-    let currentLng = livePositions[selectedTourist.id]?.lng ?? selectedTourist.current_lng ?? 88.6138;
+    let currentLat = Number(livePositions[selectedTourist.id]?.lat ?? selectedTourist.current_lat ?? 27.3314);
+    let currentLng = Number(livePositions[selectedTourist.id]?.lng ?? selectedTourist.current_lng ?? 88.6138);
+    if (isNaN(currentLat)) currentLat = 27.3314;
+    if (isNaN(currentLng)) currentLng = 88.6138;
 
     let stepCount = 0;
     
@@ -263,10 +265,9 @@ export default function TrackingPage() {
 
         mapInstance = map;
 
-        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-          subdomains: "abcd",
-          maxZoom: 20
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          maxZoom: 19
         }).addTo(map);
 
         L.control.zoom({ position: "topright" }).addTo(map);
@@ -317,9 +318,12 @@ export default function TrackingPage() {
       const currentTouristsMap: Record<string, boolean> = {};
 
       filteredTourists.forEach((tourist) => {
-        const lat = livePositions[tourist.id]?.lat ?? tourist.current_lat;
-        const lng = livePositions[tourist.id]?.lng ?? tourist.current_lng;
-        if (lat == null || lng == null) return;
+        const rawLat = livePositions[tourist.id]?.lat ?? tourist.current_lat;
+        const rawLng = livePositions[tourist.id]?.lng ?? tourist.current_lng;
+        if (rawLat == null || rawLng == null) return;
+        const lat = Number(rawLat);
+        const lng = Number(rawLng);
+        if (isNaN(lat) || isNaN(lng)) return;
 
         currentTouristsMap[tourist.id] = true;
 
@@ -389,21 +393,25 @@ export default function TrackingPage() {
     const map = mapRef.current;
     if (!map || !selectedTourist) return;
 
-    const lat = livePositions[selectedTourist.id]?.lat ?? selectedTourist.current_lat;
-    const lng = livePositions[selectedTourist.id]?.lng ?? selectedTourist.current_lng;
-    if (lat != null && lng != null) {
-      map.setView([lat, lng], 11, {
-        animate: true,
-        duration: 1.5,
-      });
+    const rawLat = livePositions[selectedTourist.id]?.lat ?? selectedTourist.current_lat;
+    const rawLng = livePositions[selectedTourist.id]?.lng ?? selectedTourist.current_lng;
+    if (rawLat != null && rawLng != null) {
+      const lat = Number(rawLat);
+      const lng = Number(rawLng);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        map.setView([lat, lng], 11, {
+          animate: true,
+          duration: 1.5,
+        });
 
-      const marker = markersRef.current[selectedTourist.id];
-      if (marker) {
-        setTimeout(() => {
-          if (!marker.isPopupOpen()) {
-            marker.openPopup();
-          }
-        }, 800);
+        const marker = markersRef.current[selectedTourist.id];
+        if (marker) {
+          setTimeout(() => {
+            if (!marker.isPopupOpen()) {
+              marker.openPopup();
+            }
+          }, 800);
+        }
       }
     }
   }, [selectedTourist]);
@@ -423,7 +431,9 @@ export default function TrackingPage() {
         (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
 
-      const latlngs = sortedPings.map((p) => [p.lat, p.lng]);
+      const latlngs = sortedPings
+        .map((p) => [Number(p.lat), Number(p.lng)])
+        .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng));
 
       // Glow line
       L.polyline(latlngs as any, {

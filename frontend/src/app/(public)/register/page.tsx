@@ -14,6 +14,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import Footer from "@/components/layout/Footer";
 import { useToast } from "@/hooks/useToast";
 import { ToastContainer } from "@/components/ui/Toast";
+import QRCode from "qrcode";
 import {
   Shield,
   CheckCircle,
@@ -332,7 +333,17 @@ export default function RegisterPage() {
         consent_tracking: data.consent_tracking,
       };
       const res = await api.post("/register", payload);
-      setResult(res.data);
+      const resData = res.data;
+      if (!resData.qrDataUrl && resData.tourist?.id) {
+        try {
+          const qrPayload = JSON.stringify({
+            touristId: resData.tourist.id,
+            blockId: resData.digitalId?.block_id || "GENESIS",
+          });
+          resData.qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 300 });
+        } catch (qrErr) {}
+      }
+      setResult(resData);
       setMode("success");
       toast.success("Registration successful! Your Digital Tourist ID has been created.");
       setTimeout(triggerConfetti, 400);

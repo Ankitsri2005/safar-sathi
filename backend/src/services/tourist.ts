@@ -184,28 +184,28 @@ export async function listDigitalIds(filters?: {
   const page = filters?.page || 1;
   const limit = filters?.limit || 20;
 
-  let query = db(DIGITAL_ID_TABLE)
-    .join(TOURIST_TABLE, "digital_ids.tourist_id", "tourists.id")
-    .select(
-      "digital_ids.*",
-      "tourists.full_name as tourist_name",
-      "tourists.id_type"
-    );
+  let baseQuery = db(DIGITAL_ID_TABLE)
+    .leftJoin(TOURIST_TABLE, "digital_ids.tourist_id", "tourists.id");
 
   if (filters?.status) {
-    query = query.where("digital_ids.status", filters.status);
+    baseQuery = baseQuery.where("digital_ids.status", filters.status);
   }
   if (filters?.search) {
-    query = query.where(function () {
+    baseQuery = baseQuery.where(function () {
       this.whereILike("tourists.full_name", `%${filters.search}%`)
         .orWhereILike("tourists.id_number", `%${filters.search}%`);
     });
   }
 
-  const countResult = await query.clone().count("digital_ids.id as total").first();
+  const countResult = await baseQuery.clone().count("digital_ids.id as total").first();
   const total = parseInt((countResult as any)?.total || "0", 10);
 
-  const data = await query
+  const data = await baseQuery
+    .select(
+      "digital_ids.*",
+      "tourists.full_name as tourist_name",
+      "tourists.id_type"
+    )
     .orderBy("digital_ids.issued_at", "desc")
     .offset((page - 1) * limit)
     .limit(limit);

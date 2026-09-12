@@ -86,17 +86,21 @@ export function DigitalIdCard({ data, showActions = true, className, compact = f
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const tid = data.tourist_id || (data as any).id || "DEMO-ID";
+    const bid = data.block_id || "GENESIS-BLOCK";
     const qrPayload = JSON.stringify({
-      tourist_id: data.tourist_id,
-      block_id: data.block_id,
+      tourist_id: tid,
+      block_id: bid,
     });
     QRCode.toDataURL(qrPayload, {
       width: compact ? 120 : 200,
       margin: 1,
       color: { dark: "#0f172a", light: "#ffffff" },
       errorCorrectionLevel: "M",
-    }).then(setQrDataUrl);
-  }, [data.tourist_id, data.block_id, compact]);
+    })
+      .then(setQrDataUrl)
+      .catch((err) => console.error("QR Code Generation Error:", err));
+  }, [data.tourist_id, data.block_id, (data as any).id, compact]);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("en-IN", {

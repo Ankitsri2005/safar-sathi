@@ -167,31 +167,31 @@ export async function listAlerts(filters?: {
   const page = filters?.page || 1;
   const limit = filters?.limit || 20;
 
-  let query = db(TABLE)
-    .join("tourists", "alerts.tourist_id", "tourists.id")
-    .select("alerts.*", "tourists.full_name as tourist_name");
+  let baseQuery = db(TABLE)
+    .join("tourists", "alerts.tourist_id", "tourists.id");
 
   if (filters?.status) {
-    query = query.where("alerts.status", filters.status);
+    baseQuery = baseQuery.where("alerts.status", filters.status);
   }
   if (filters?.alert_type) {
-    query = query.where("alerts.alert_type", filters.alert_type);
+    baseQuery = baseQuery.where("alerts.alert_type", filters.alert_type);
   }
   if (filters?.severity) {
-    query = query.where("alerts.severity", filters.severity);
+    baseQuery = baseQuery.where("alerts.severity", filters.severity);
   }
   if (filters?.search) {
-    query = query.where(function () {
+    baseQuery = baseQuery.where(function () {
       this.where("tourists.full_name", "ilike", `%${filters.search}%`)
         .orWhere("alerts.location_name", "ilike", `%${filters.search}%`)
         .orWhere("alerts.message", "ilike", `%${filters.search}%`);
     });
   }
 
-  const countResult = await query.clone().count("alerts.id as total").first();
+  const countResult = await baseQuery.clone().count("alerts.id as total").first();
   const total = parseInt((countResult as any)?.total || "0", 10);
 
-  const data = await query
+  const data = await baseQuery
+    .select("alerts.*", "tourists.full_name as tourist_name")
     .orderBy("alerts.created_at", "desc")
     .offset((page - 1) * limit)
     .limit(limit);

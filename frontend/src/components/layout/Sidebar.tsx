@@ -88,8 +88,8 @@ export default function Sidebar({ children }: { children?: ReactNode }) {
         )}
       >
         {/* Header */}
-        <div className="flex items-center gap-2.5 px-4 h-16 border-b border-white/5">
-          <div className="w-9 h-9 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center shrink-0 shadow-md">
+        <div className="flex items-center gap-2.5 px-4 h-16 border-b border-white/5" style={{background: "linear-gradient(135deg, rgba(5,150,105,0.20) 0%, rgba(217,119,6,0.10) 100%)"}}>
+          <div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-amber-500 rounded-xl flex items-center justify-center shrink-0 shadow-lg" style={{boxShadow: "0 0 14px rgba(16,185,129,0.55)"}}>
             <Shield className="w-5 h-5 text-white" />
           </div>
           {!collapsed && (
@@ -115,12 +115,16 @@ export default function Sidebar({ children }: { children?: ReactNode }) {
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative",
                   isActive
-                    ? "bg-primary text-white shadow-md"
+                    ? "text-white shadow-lg"
                     : "text-gray-400 hover:text-white hover:bg-white/5"
                 )}
+                style={isActive ? {
+                  background: "linear-gradient(135deg, #059669, #10b981)",
+                  boxShadow: "0 0 16px rgba(16,185,129,0.45), 0 4px 10px rgba(5,150,105,0.30)"
+                } : undefined}
               >
                 {isActive && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-accent rounded-r-full" />
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gradient-to-b from-amber-400 to-emerald-400 rounded-r-full" style={{boxShadow: "0 0 8px rgba(245,158,11,0.80)"}} />
                 )}
                 <Icon className={cn("w-5 h-5 shrink-0", isActive && "text-white")} />
                 {!collapsed && (

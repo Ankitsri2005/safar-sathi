@@ -136,10 +136,12 @@ async function generatePdf(
       }
       doc.fillColor("#333");
       x = 55;
+      const latNum = ping.lat != null ? Number(ping.lat) : NaN;
+      const lngNum = ping.lng != null ? Number(ping.lng) : NaN;
       const values = [
         String(i + 1),
-        String(ping.lat?.toFixed(6) || "N/A"),
-        String(ping.lng?.toFixed(6) || "N/A"),
+        !isNaN(latNum) ? latNum.toFixed(6) : "N/A",
+        !isNaN(lngNum) ? lngNum.toFixed(6) : "N/A",
         ping.timestamp ? new Date(ping.timestamp).toLocaleString("en-IN") : "N/A",
       ];
       values.forEach((v, j) => {
@@ -278,6 +280,17 @@ export async function generateEfir(
     .update(`${efirId}${alertId}${touristNameHash(alert.tourist_uuid)}${Date.now()}`)
     .digest("hex");
 
+  const formattedHistory = locationHistory.map((p: any) => ({
+    lat: Number(p.lat),
+    lng: Number(p.lng),
+    timestamp: p.timestamp,
+  }));
+
+  try {
+    await db.raw("ALTER TABLE efirs DROP CONSTRAINT IF EXISTS efirs_status_check;");
+    await db.raw("ALTER TABLE efirs ADD CONSTRAINT efirs_status_check CHECK (status IN ('draft', 'generated', 'filed', 'closed', 'cancelled'));");
+  } catch {}
+
   // Store in DB
   const [efir] = await db(TABLE)
     .insert({
@@ -294,15 +307,15 @@ export async function generateEfir(
       last_known_lat: alert.location_lat,
       last_known_lng: alert.location_lng,
       last_known_location_name: alert.location_name,
-      location_history: locationHistory,
-      officer_info: officer ? {
+      location_history: JSON.stringify(formattedHistory),
+      officer_info: officer ? JSON.stringify({
         name: officer.full_name,
         role: officer.role,
         jurisdiction: officer.jurisdiction,
         id: officer.id,
-      } : null,
+      }) : null,
       incident_description: description,
-      resolution_status: "under_investigation",
+      resolution_status: EfirStatus.GENERATED,
       verification_status: "pending",
       blockchain_hash: blockchainHash,
     })
@@ -333,29 +346,28 @@ export async function listEfirs(filters?: {
   const page = filters?.page || 1;
   const limit = filters?.limit || 20;
 
-  let query = db(TABLE)
-    .join("tourists", "efirs.tourist_id", "tourists.id")
-    .select(
-      "efirs.*",
-      "tourists.full_name as tourist_name",
-      "tourists.id_number as tourist_id_number"
-    );
+  let baseQuery = db(TABLE).join("tourists", "efirs.tourist_id", "tourists.id");
 
   if (filters?.status) {
-    query = query.where("efirs.status", filters.status);
+    baseQuery = baseQuery.where("efirs.status", filters.status);
   }
   if (filters?.search) {
-    query = query.where(function () {
+    baseQuery = baseQuery.where(function () {
       this.where("efirs.efir_number", "ilike", `%${filters.search}%`)
         .orWhere("tourists.full_name", "ilike", `%${filters.search}%`)
         .orWhere("tourists.id_number", "ilike", `%${filters.search}%`);
     });
   }
 
-  const countResult = await query.clone().count("efirs.id as total").first();
+  const countResult = await baseQuery.clone().count("efirs.id as total").first();
   const total = parseInt((countResult as any)?.total || "0", 10);
 
-  const data = await query
+  const data = await baseQuery
+    .select(
+      "efirs.*",
+      "tourists.full_name as tourist_name",
+      "tourists.id_number as tourist_id_number"
+    )
     .orderBy("efirs.created_at", "desc")
     .offset((page - 1) * limit)
     .limit(limit);

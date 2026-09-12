@@ -1,0 +1,21 @@
+{
+  "model_name": "West Bengal Forest & Restricted Zone Safety Ensemble",
+  "version": "wb-ensemble-v1.0",
+  "trained_at": "2026-09-11T19:51:04.414916",
+  "training_samples": 3500,
+  "features": [
+    "lat",
+    "lng",
+    "min_dist_to_restricted_forest_km",
+    "min_dist_to_forest_buffer_km",
+    "in_wb_bounds",
+    "speed_kmh",
+    "direction_change_deg",
+    "time_in_forest_pct",
+    "elevation_approx_m",
+    "night_travel_flag",
+    "off_route_dev_km"
+  ],
+  "accuracy": 1.0,
+  "num_wb_reserves_indexed": 8
+}

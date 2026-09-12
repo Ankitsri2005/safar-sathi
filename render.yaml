@@ -1,0 +1,117 @@
+databases:
+  - name: safar-sathi-db
+    databaseName: smart_tourist_safety
+    user: safar_user
+    plan: free
+
+services:
+  # 1. AI/ML Microservice (Python)
+  - type: web
+    name: safar-ai-service
+    runtime: python
+    plan: free
+    rootDir: ai-service
+    buildCommand: pip install -r requirements.txt
+    startCommand: python src/app.py
+    envVars:
+      - key: PORT
+        value: 5001
+      - key: DATABASE_URL
+        fromDatabase:
+          name: safar-sathi-db
+          property: connectionString
+      - key: DB_HOST
+        fromDatabase:
+          name: safar-sathi-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: safar-sathi-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: safar-sathi-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: safar-sathi-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: safar-sathi-db
+          property: password
+
+  # 2. Backend API & WebSocket (Node.js)
+  - type: web
+    name: safar-backend-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm run migrate && npm run seed && npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: safar-sathi-db
+          property: connectionString
+      - key: DB_HOST
+        fromDatabase:
+          name: safar-sathi-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: safar-sathi-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: safar-sathi-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: safar-sathi-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: safar-sathi-db
+          property: password
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 24h
+      - key: BLOCKCHAIN_SALT
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: AI_SERVICE_URL
+        fromService:
+          type: web
+          name: safar-ai-service
+          property: host
+      - key: CORS_ORIGIN
+        value: "https://safar-frontend.onrender.com"
+
+  # 3. Next.js Frontend
+  - type: web
+    name: safar-frontend
+    runtime: node
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: "https://safar-backend-api.onrender.com/api"
+      - key: NEXT_PUBLIC_APP_NAME
+        value: "Smart Tourist Safety System"
+      - key: INTERNAL_BACKEND_HOST
+        fromService:
+          type: web
+          name: safar-backend-api
+          property: host
+      - key: INTERNAL_BACKEND_PORT
+        value: 5000
+

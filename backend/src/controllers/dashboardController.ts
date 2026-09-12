@@ -61,3 +61,13 @@ export async function getAlertHeatmap(req: Request, res: Response) {
     res.status(500).json({ error: "Failed to fetch alert heatmap" });
   }
 }
+
+export async function getRecentTourists(req: Request, res: Response) {
+  try {
+    const limit = parseInt(req.query.limit as string) || 8;
+    const data = await svc.getRecentTourists(limit);
+    res.json(data);
+  } catch {
+    res.status(500).json({ error: "Failed to fetch recent tourists" });
+  }
+}

@@ -737,9 +737,52 @@ def get_tourist_analyses(tourist_id):
     return jsonify(results)
 
 
+@app.route("/api/predict/wb-risk", methods=["POST"])
+def predict_wb_risk():
+    """Predict West Bengal forest reserve & restricted area safety risk."""
+    try:
+        data = request.get_json(force=True) or {}
+        lat = float(data.get("lat", 22.5726))
+        lng = float(data.get("lng", 88.3639))
+        speed_kmh = float(data.get("speed_kmh", 5.0))
+        direction_change_deg = float(data.get("direction_change_deg", 10.0))
+        time_in_forest_pct = float(data.get("time_in_forest_pct", 0.0))
+        night_travel = bool(data.get("night_travel", False))
+        off_route_dev_km = float(data.get("off_route_dev_km", 0.0))
+
+        from src.wb_forest_risk_model import wb_model
+        if not wb_model.is_loaded:
+            wb_model.load()
+
+        res = wb_model.predict(
+            lat=lat, lng=lng, speed_kmh=speed_kmh,
+            direction_change_deg=direction_change_deg,
+            time_in_forest_pct=time_in_forest_pct,
+            night_travel=night_travel,
+            off_route_dev_km=off_route_dev_km
+        )
+        return jsonify(res)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/train/wb-model", methods=["POST"])
+def train_wb_model_endpoint():
+    """Trigger West Bengal Forest ML Model re-training."""
+    try:
+        from src.train_wb_model import train_and_save_wb_model
+        meta = train_and_save_wb_model()
+        from src.wb_forest_risk_model import wb_model
+        wb_model.load()
+        return jsonify({"success": True, "metadata": meta})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     # Train model on startup
     print("Training Isolation Forest model...")
     train_model()
     print(f"Model trained. Version: {MODEL_VERSION}")
     app.run(debug=True, port=5001)
+

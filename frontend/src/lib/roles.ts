@@ -27,12 +27,12 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     label: "Digital IDs",
   },
   "/efirs": {
-    roles: [UserRole.ADMIN, UserRole.POLICE],
+    roles: [UserRole.ADMIN, UserRole.POLICE, UserRole.TOURISM],
     label: "E-FIRs",
   },
   "/zones": {
-    roles: [UserRole.ADMIN],
-    label: "Zone Management",
+    roles: [UserRole.ADMIN, UserRole.TOURISM, UserRole.POLICE],
+    label: "Safety Zones & Forest Corridors",
   },
   "/users": {
     roles: [UserRole.ADMIN],

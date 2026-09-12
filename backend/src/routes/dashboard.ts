@@ -11,5 +11,6 @@ router.get("/analytics", ctrl.getAlertAnalytics);
 router.get("/comprehensive", ctrl.getComprehensive);
 router.get("/heatmap/tourist", ctrl.getTouristHeatmap);
 router.get("/heatmap/alert", ctrl.getAlertHeatmap);
+router.get("/recent-tourists", ctrl.getRecentTourists);
 
 export default router;

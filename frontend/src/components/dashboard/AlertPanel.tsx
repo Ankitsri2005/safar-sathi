@@ -7,6 +7,7 @@ import { AlertTriangle, Radio, MapPin } from "lucide-react";
 interface AlertPanelProps {
   alerts: Alert[];
   className?: string;
+  onAlertClick?: (alert: Alert) => void;
 }
 
 const severityConfig: Record<string, { bg: string; icon: string; dot: string }> = {
@@ -21,7 +22,7 @@ const statusBadge: Record<string, string> = {
   resolved: "bg-success-100 text-success",
 };
 
-export function AlertPanel({ alerts, className }: AlertPanelProps) {
+export function AlertPanel({ alerts, className, onAlertClick }: AlertPanelProps) {
   return (
     <div className={cn("space-y-2", className)}>
       {alerts.length === 0 && (
@@ -37,9 +38,10 @@ export function AlertPanel({ alerts, className }: AlertPanelProps) {
         return (
           <div
             key={alert.id}
+            onClick={() => onAlertClick && onAlertClick(alert)}
             className={cn(
               "flex items-start gap-3 p-3 rounded-xl border transition-all duration-200 hover:shadow-md cursor-pointer",
-              isNew ? "border-danger/20 bg-danger-50/30" : "border-border bg-white hover:bg-surface-light/5"
+              isNew ? "border-danger/30 bg-danger-50/40 hover:bg-danger-50/70" : "border-border bg-white hover:bg-surface-light/5"
             )}
           >
             <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", severity.bg)}>

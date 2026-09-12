@@ -63,4 +63,23 @@ router.post("/analyze-all", async (_req: Request, res: Response) => {
   }
 });
 
+router.post("/predict-wb-risk", async (req: Request, res: Response) => {
+  try {
+    const result = await proxyToAIService("POST", "/api/predict/wb-risk", req.body);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "West Bengal risk prediction failed" });
+  }
+});
+
+router.post("/train-wb-model", async (_req: Request, res: Response) => {
+  try {
+    const result = await proxyToAIService("POST", "/api/train/wb-model");
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "West Bengal model training failed" });
+  }
+});
+
 export default router;
+

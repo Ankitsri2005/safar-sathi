@@ -66,25 +66,29 @@ export async function listUsers(filters?: {
   const page = filters?.page || 1;
   const limit = filters?.limit || 50;
 
-  let query = db(TABLE).select(
-    "id", "username", "full_name", "role", "jurisdiction",
-    "is_active", "created_at", "updated_at"
-  );
+  let baseQuery = db(TABLE);
 
-  if (filters?.role) query = query.where("role", filters.role);
-  if (filters?.is_active !== undefined) query = query.where("is_active", filters.is_active);
+  if (filters?.role) baseQuery = baseQuery.where("role", filters.role);
+  if (filters?.is_active !== undefined) baseQuery = baseQuery.where("is_active", filters.is_active);
   if (filters?.search) {
-    query = query.where(function () {
+    baseQuery = baseQuery.where(function () {
       this.where("full_name", "ilike", `%${filters.search}%`)
         .orWhere("username", "ilike", `%${filters.search}%`)
         .orWhere("jurisdiction", "ilike", `%${filters.search}%`);
     });
   }
 
-  const countResult = await query.clone().count("id as total").first();
+  const countResult = await baseQuery.clone().count("id as total").first();
   const total = parseInt((countResult as any)?.total || "0", 10);
 
-  const data = await query.orderBy("created_at", "desc").offset((page - 1) * limit).limit(limit);
+  const data = await baseQuery
+    .select(
+      "id", "username", "full_name", "role", "jurisdiction",
+      "is_active", "created_at", "updated_at"
+    )
+    .orderBy("created_at", "desc")
+    .offset((page - 1) * limit)
+    .limit(limit);
   return { data, total };
 }
 

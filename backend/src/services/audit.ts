@@ -67,35 +67,36 @@ export async function listAuditLogs(filters?: {
   const page = filters?.page || 1;
   const limit = filters?.limit || 50;
 
-  let query = db("audit_logs").select("*");
+  let baseQuery = db("audit_logs");
 
   if (filters?.user_id) {
-    query = query.where("user_id", filters.user_id);
+    baseQuery = baseQuery.where("user_id", filters.user_id);
   }
   if (filters?.event_type) {
-    query = query.where("event_type", filters.event_type);
+    baseQuery = baseQuery.where("event_type", filters.event_type);
   }
   if (filters?.resource_type) {
-    query = query.where("resource_type", filters.resource_type);
+    baseQuery = baseQuery.where("resource_type", filters.resource_type);
   }
   if (filters?.from_date) {
-    query = query.where("created_at", ">=", filters.from_date);
+    baseQuery = baseQuery.where("created_at", ">=", filters.from_date);
   }
   if (filters?.to_date) {
-    query = query.where("created_at", "<=", filters.to_date);
+    baseQuery = baseQuery.where("created_at", "<=", filters.to_date);
   }
   if (filters?.search) {
-    query = query.where(function () {
+    baseQuery = baseQuery.where(function () {
       this.where("user_name", "ilike", `%${filters.search}%`)
         .orWhere("resource_type", "ilike", `%${filters.search}%`)
         .orWhereRaw("details::text ILIKE ?", [`%${filters.search}%`]);
     });
   }
 
-  const countResult = await query.clone().count("id as total").first();
+  const countResult = await baseQuery.clone().count("id as total").first();
   const total = parseInt((countResult as any)?.total || "0", 10);
 
-  const data = await query
+  const data = await baseQuery
+    .select("*")
     .orderBy("created_at", "desc")
     .offset((page - 1) * limit)
     .limit(limit);

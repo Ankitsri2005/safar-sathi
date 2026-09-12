@@ -1,0 +1,7 @@
+{
+  "version": "isolation-forest-20260911_195416",
+  "saved_at": "2026-09-11T19:54:16.881051",
+  "n_estimators": 200,
+  "contamination": 0.1,
+  "n_features_in": 21
+}
