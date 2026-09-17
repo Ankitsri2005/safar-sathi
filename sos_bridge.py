@@ -18,16 +18,35 @@ DEFAULT_LNG = 88.4903
 
 def get_live_location():
     """Attempts to fetch dynamic IP-based location in Kolkata/India, or uses precise fallback."""
+    # 1. Try ip-api.com (reliable, free, high limit)
     try:
-        res = requests.get("https://ipapi.co/json/", timeout=2)
+        res = requests.get("http://ip-api.com/json/", timeout=3)
         if res.status_code == 200:
             data = res.json()
-            lat = float(data.get("latitude", DEFAULT_LAT))
-            lng = float(data.get("longitude", DEFAULT_LNG))
-            return lat, lng
+            if data.get("status") == "success" and "lat" in data and "lon" in data:
+                lat = float(data["lat"])
+                lng = float(data["lon"])
+                city = data.get("city", "Live Location")
+                print(f"[LOCATION] Live GPS detected via network: {city} ({lat:.4f}, {lng:.4f})")
+                return lat, lng
+    except Exception as e:
+        print(f"[LOCATION] ip-api check failed: {e}")
+
+    # 2. Try ipapi.co as secondary
+    try:
+        res = requests.get("https://ipapi.co/json/", timeout=3)
+        if res.status_code == 200:
+            data = res.json()
+            if not data.get("error") and "latitude" in data and "longitude" in data:
+                lat = float(data["latitude"])
+                lng = float(data["longitude"])
+                return lat, lng
     except Exception:
         pass
+
+    print(f"[LOCATION] Using default fallback coordinates: ({DEFAULT_LAT}, {DEFAULT_LNG})")
     return DEFAULT_LAT, DEFAULT_LNG
+
 
 def auto_detect_esp32_port():
     """Detects available COM port with preference for COM8."""
@@ -160,13 +179,22 @@ def main():
     print("Press your physical switch on GPIO 27, OR press [Enter] here.")
     print("-"*60 + "\n")
 
+    last_trigger_time = 0
+    COOLDOWN_SECS = 4
+
     # Background thread for manual Enter keypress
     def keyboard_listener():
+        nonlocal last_trigger_time
         while True:
             try:
                 input()
-                print(">>> [TRIGGER] Manual SOS alert dispatched via bridge...")
-                trigger_sos_alert(token, tourist_id, tourist_name)
+                now = time.time()
+                if now - last_trigger_time >= COOLDOWN_SECS:
+                    last_trigger_time = now
+                    print(">>> [TRIGGER] Manual SOS alert dispatched via bridge...")
+                    trigger_sos_alert(token, tourist_id, tourist_name)
+                else:
+                    print(f"[DEBOUNCE] Cooldown active ({COOLDOWN_SECS}s). Please wait.")
             except Exception:
                 break
 
@@ -174,6 +202,8 @@ def main():
     t.start()
 
     # Main Serial Loop
+    TRIGGER_KEYWORDS = ["SOS", "ALERT", "PANIC", "BUTTON", "PRESSED", "TRIGGER", "EMERGENCY"]
+
     while True:
         try:
             if ser and ser.is_open:
@@ -182,8 +212,14 @@ def main():
                     line = raw.decode("utf-8", errors="ignore").strip()
                     if line:
                         print(f"[ESP32 Signal] {line}")
-                        if "SOS" in line.upper() or "ALERT" in line.upper() or "PANIC" in line.upper():
-                            trigger_sos_alert(token, tourist_id, tourist_name)
+                        upper = line.upper()
+                        if any(kw in upper for kw in TRIGGER_KEYWORDS):
+                            now = time.time()
+                            if now - last_trigger_time >= COOLDOWN_SECS:
+                                last_trigger_time = now
+                                trigger_sos_alert(token, tourist_id, tourist_name)
+                            else:
+                                print(f"[DEBOUNCE] Ignored bounce within {COOLDOWN_SECS}s")
             else:
                 time.sleep(0.5)
         except KeyboardInterrupt:

@@ -112,16 +112,28 @@ export async function createAlert(data: {
   // Add timeline entry
   await addTimelineEntry(alert.id, "created", "system", `Alert created: ${data.alert_type}`);
 
+  // Fetch tourist name to enrich the real-time socket alert
+  let touristName: string | undefined;
+  try {
+    const tourist = await db("tourists").where({ id: data.tourist_id }).first();
+    touristName = tourist?.full_name;
+  } catch {}
+
+  const enrichedAlert = {
+    ...alert,
+    tourist_name: touristName || "Verified Tourist",
+  };
+
   // Broadcast to connected dashboard clients
   try {
     const { io } = await import("../server");
-    io.emit("alert:new", alert);
+    io.emit("alert:new", enrichedAlert);
   } catch {}
 
   // Send notifications to all active officers
   try {
     const { notifyAlertCreated } = await import("./notification");
-    await notifyAlertCreated({ ...alert, tourist_name: data.message });
+    await notifyAlertCreated({ ...alert, tourist_name: touristName || data.message });
   } catch {}
 
   return alert;

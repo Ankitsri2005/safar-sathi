@@ -368,7 +368,7 @@ export default function DashboardOverview() {
             focusLocation={focusedAlert ? {
               lat: Number(focusedAlert.location_lat),
               lng: Number(focusedAlert.location_lng),
-              title: `🚨 ${focusedAlert.tourist_name}`,
+              title: focusedAlert.tourist_name ? `🚨 ${focusedAlert.tourist_name}` : "🚨 Emergency Panic Alert",
               subtitle: `EMERGENCY SOS: (${Number(focusedAlert.location_lat).toFixed(4)}°, ${Number(focusedAlert.location_lng).toFixed(4)}°)`
             } : null}
           />
